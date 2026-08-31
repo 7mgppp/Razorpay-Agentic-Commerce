@@ -44,8 +44,8 @@ Then open `http://localhost:8000`. API docs at `http://localhost:8000/docs`.
 
 | Overview | Live Ledger |
 |---|---|
-| ![Overview](docs/screenshots/overview.png) | ![Ledger](docs/screenshots/ledger.png) |
+| ![Overview](overview.png) | ![Ledger](liveLedger.png) |
 
 | Security Alerts | Pending Reviews |
 |---|---|
-| ![Alerts](docs/screenshots/threats.png) | ![Reviews](docs/screenshots/reviews.png) |
+| ![Alerts](secAlrert.png) | ![Reviews](pending.png) |
