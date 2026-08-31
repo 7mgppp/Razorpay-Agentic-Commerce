@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Razorpay Agentic Commerce Safety Layer</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Styling -->
+    <link rel="stylesheet" href="style.css?v=1.0.2">
+</head>
+<body>
+    <div class="glass-bg"></div>
+    <div class="dashboard-container">
+        
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-logo">
+                <i class="fa-solid fa-shield-halved logo-icon"></i>
+                <div class="logo-text">
+                    <h1>Razorpay Guard</h1>
+                    <span>Agentic Commerce Safety Layer</span>
+                </div>
+            </div>
+            <div class="header-status">
+                <div id="connection-badge" class="status-indicator disconnected">
+                    <span class="pulse-dot"></span>
+                    <span id="connection-text">Connecting WebSocket...</span>
+                </div>
+                <button id="toggle-simulator-btn" class="control-btn shadow-neon">
+                    <i class="fa-solid fa-pause"></i> Pause Simulation
+                </button>
+            </div>
+        </header>
+
+        <!-- Dashboard Layout -->
+        <main class="dashboard-grid">
+            
+            <!-- LEFT PANEL: Agents & Escalations -->
+            <section class="grid-col left-panel">
+                
+                <!-- Escalations Card -->
+                <div class="glass-panel card-escalations neon-border-yellow">
+                    <div class="panel-header">
+                        <h2><i class="fa-solid fa-triangle-exclamation yellow-text"></i> Pending Reviews</h2>
+                        <span id="escalation-count" class="badge badge-yellow">0</span>
+                    </div>
+                    <div class="panel-body">
+                        <div id="escalations-list" class="escalations-container">
+                            <div class="empty-state">
+                                <i class="fa-solid fa-circle-check green-text empty-icon"></i>
+                                <p>No transactions awaiting manual review.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agent Directory -->
+                <div class="glass-panel card-agents">
+                    <div class="panel-header">
+                        <h2><i class="fa-solid fa-robot"></i> Buyer Agent Identities</h2>
+                        <span id="agent-count" class="badge badge-gray">0</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="agents-table-container">
+                            <table class="agents-table">
+                                <thead>
+                                    <tr>
+                                        <th>Agent ID</th>
+                                        <th>Risk Tier</th>
+                                        <th>Violations</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="agents-list">
+                                    <!-- Rendered dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Policy Parameters Info Box -->
+                <div class="glass-panel card-policy-info">
+                    <div class="panel-header">
+                        <h2><i class="fa-solid fa-gavel"></i> Global Merchant Policies</h2>
+                    </div>
+                    <div class="panel-body">
+                        <div class="policy-details">
+                            <div class="policy-item">
+                                <span class="policy-cat">Electronics Cap</span>
+                                <span class="policy-limits"><span class="tier-new">New: ₹12,000</span> | <span class="tier-est">Est: ₹80,000</span></span>
+                            </div>
+                            <div class="policy-item">
+                                <span class="policy-cat">Office Supplies Cap</span>
+                                <span class="policy-limits"><span class="tier-new">New: ₹8,000</span> | <span class="tier-est">Est: ₹40,000</span></span>
+                            </div>
+                            <div class="policy-item">
+                                <span class="policy-cat">Cloud Services Cap</span>
+                                <span class="policy-limits"><span class="tier-new">New: ₹32,000</span> | <span class="tier-est">Est: ₹2,40,000</span></span>
+                            </div>
+                            <div class="policy-rules">
+                                <small><i class="fa-solid fa-info-circle"></i> Velocity Alert: 4+ purchases under 30s totaling &ge; ₹12,000.</small>
+                                <small><i class="fa-solid fa-info-circle"></i> Collusion Alert: 3+ distinct agents transacting under 30s totaling &ge; ₹24,000.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- MIDDLE PANEL: Live Transaction Attempts Feed -->
+            <section class="grid-col middle-panel glass-panel main-feed">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-receipt"></i> Real-time Transaction Ledger</h2>
+                    <div class="feed-filters">
+                        <span class="feed-subtitle">Explainable, Bounded & Gated Feed</span>
+                    </div>
+                </div>
+                <div class="panel-body feed-body">
+                    <div id="transactions-feed" class="feed-container">
+                        <!-- Filled dynamically -->
+                        <div class="empty-state">
+                            <i class="fa-solid fa-rotate spin empty-icon"></i>
+                            <p>Awaiting ledger events...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- RIGHT PANEL: Negotiations & Alerts -->
+            <section class="grid-col right-panel">
+                
+                <!-- Security Alerts (Flags) Panel -->
+                <div class="glass-panel card-flags neon-border-red">
+                    <div class="panel-header">
+                        <h2><i class="fa-solid fa-shield-halved red-text"></i> Security Threat Alerts</h2>
+                        <span id="flag-count" class="badge badge-red">0</span>
+                    </div>
+                    <div class="panel-body">
+                        <div id="flags-list" class="flags-container">
+                            <div class="empty-state">
+                                <i class="fa-solid fa-shield-virus green-text empty-icon"></i>
+                                <p>System secure. No anomalous patterns flagged.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scope Negotiation Panel -->
+                <div class="glass-panel card-negotiations">
+                    <div class="panel-header">
+                        <h2><i class="fa-solid fa-handshake"></i> Mandate Scope Negotiations</h2>
+                        <span id="negotiation-count" class="badge badge-blue">0</span>
+                    </div>
+                    <div class="panel-body">
+                        <div id="negotiations-list" class="negotiations-container">
+                            <div class="empty-state">
+                                <i class="fa-solid fa-file-invoice empty-icon"></i>
+                                <p>No mandate negotiations logged yet.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Risk History Modal -->
+    <div id="history-modal" class="modal">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-clock-rotate-left"></i> Agent Risk Tier History</h2>
+                <button class="close-modal-btn" onclick="closeHistoryModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-agent-meta"></div>
+                <div id="history-timeline" class="timeline-container">
+                    <!-- Loaded dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js?v=1.0.2"></script>
+</body>
+</html>
