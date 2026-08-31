@@ -21,6 +21,7 @@ class SafetyLayerSimulator:
             {"id": "agent_office_runner", "name": "Office Restocking Agent", "tier": "new"},
             {"id": "agent_temp_guest", "name": "Guest Ad-hoc Buyer", "tier": "new"},
         ]
+        self.escalation_index = 0
 
     async def start(self):
         self.running = True
@@ -337,51 +338,106 @@ class SafetyLayerSimulator:
             db.close()
 
     async def simulate_escalation_event(self):
-        """Simulate an event that requires manual review (>85% cap consumed for new agent)."""
+        """Simulate realistic, varied events requiring manual human-in-the-loop review."""
         db = SessionLocal()
         try:
-            agent_id = "agent_temp_guest"
-            agent = db.query(AgentIdentity).filter(AgentIdentity.id == agent_id).first()
+            scenarios = [
+                {
+                    "agent_id": "agent_temp_guest",
+                    "tier": "new",
+                    "category": "electronics",
+                    "cap": 16000.0,
+                    "amount": 14750.0,
+                    "purpose": "Developer 4K Monitor & Dock Order",
+                    "reason": "Cap Exhaustion Alert: 'new' tier agent 'agent_temp_guest' attempting transaction of ₹14,750.00 consuming 92.2% of granted mandate cap (₹16,000.00). Awaiting merchant confirmation."
+                },
+                {
+                    "agent_id": "agent_office_runner",
+                    "tier": "flagged",
+                    "category": "office_supplies",
+                    "cap": 4000.0,
+                    "amount": 3400.0,
+                    "purpose": "Emergency Ergonomic Equipment Order",
+                    "reason": "Flagged Agent Anomaly: Constrained agent 'agent_office_runner' attempting high-value transaction of ₹3,400.00 (85.0% of constrained cap ₹4,000.00). Escalated for manual merchant authorization."
+                },
+                {
+                    "agent_id": "agent_procure_bot",
+                    "tier": "established",
+                    "category": "cloud_services",
+                    "cap": 240000.0,
+                    "amount": 185000.0,
+                    "purpose": "Quarterly GPU Cluster Compute Reservation",
+                    "reason": "High-Value Single Transaction: Infrastructure charge of ₹185,000.00 in 'cloud_services' exceeds merchant automated clearance limit (₹100,000.00). Awaiting manual sign-off."
+                },
+                {
+                    "agent_id": "agent_travel_planner",
+                    "tier": "new",
+                    "category": "food_delivery",
+                    "cap": 12000.0,
+                    "amount": 10500.0,
+                    "purpose": "Corporate Event Catering Order",
+                    "reason": "Anomalous Velocity Spike: Rapid surge order of ₹10,500.00 in 'food_delivery' (87.5% of cap) following 2 recent purchases. Gated for merchant security verification."
+                },
+                {
+                    "agent_id": "agent_temp_guest",
+                    "tier": "new",
+                    "category": "office_supplies",
+                    "cap": 12000.0,
+                    "amount": 10900.0,
+                    "purpose": "Bulk Department Stationery Restock",
+                    "reason": "First-Time Buyer Anomaly: Unverified buyer agent 'agent_temp_guest' attempting initial bulk purchase of ₹10,900.00 (90.8% of cap). Gated for merchant initial clearance."
+                }
+            ]
+
+            scenario = scenarios[self.escalation_index % len(scenarios)]
+            self.escalation_index += 1
+
+            agent = db.query(AgentIdentity).filter(AgentIdentity.id == scenario["agent_id"]).first()
             if agent:
-                agent.risk_tier = "new"  # Ensure it is in 'new' tier for >85% escalation rule
+                agent.risk_tier = scenario["tier"]
                 db.commit()
 
-            category = "electronics"
-            cap = 10000.0
-            
             mandate = negotiate_mandate(
                 db,
-                agent_id=agent_id,
+                agent_id=scenario["agent_id"],
                 merchant_id=self.merchant_id,
-                category=category,
-                requested_cap=cap,
+                category=scenario["category"],
+                requested_cap=scenario["cap"],
                 valid_from=datetime.datetime.utcnow(),
                 valid_until=datetime.datetime.utcnow() + datetime.timedelta(minutes=10),
-                purpose="High-value electronics request"
+                purpose=scenario["purpose"]
             )
+            mandate.amount_cap = scenario["cap"]
             db.add(mandate)
             db.commit()
             db.refresh(mandate)
 
-            # Attempt a transaction that is 92% of cap (₹9,200.00)
-            large_amount = 9200.0
+            if self.broadcast_callback:
+                await self.broadcast_callback({
+                    "type": "negotiation",
+                    "data": mandate.to_dict(),
+                    "agent": mandate.agent.to_dict()
+                })
+
             decision_data = enforce_transaction(
                 db,
                 mandate=mandate,
-                amount=large_amount,
-                category=category,
+                amount=scenario["amount"],
+                category=scenario["category"],
                 timestamp=datetime.datetime.utcnow()
             )
+
+            escalated_reason = decision_data["reason"] if decision_data["decision"] == "escalated" else scenario["reason"]
 
             tx = TransactionAttempt(
                 id=f"tx_{uuid.uuid4().hex[:8]}",
                 mandate_id=mandate.id,
-                agent_id=agent_id,
-                amount=large_amount,
-                category=category,
+                agent_id=scenario["agent_id"],
+                amount=scenario["amount"],
+                category=scenario["category"],
                 timestamp=datetime.datetime.utcnow(),
-                decision=decision_data["decision"],  # 'escalated'
-                reason=decision_data["reason"]
+                decision="escalated",
+                reason=escalated_reason
             )
             await self.log_and_broadcast(db, tx)
         finally:

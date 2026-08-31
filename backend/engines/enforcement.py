@@ -80,25 +80,37 @@ def enforce_transaction(
         }
 
     # 6. Check for human escalation logic
-    # Rule: Escalate if a transaction consumes > 85% of the total mandate cap in a single attempt for a 'new' agent.
-    # Also escalate if a 'flagged' agent attempts > 75% of their constrained cap.
     agent = mandate.agent
     if agent:
-        if agent.risk_tier == "new" and amount > (0.85 * mandate.amount_cap):
+        # Rule A: High-value single transaction exceeding automated clearance threshold
+        if amount >= 100000.0:
             return {
                 "decision": "escalated",
                 "reason": (
-                    f"Risk Escalation: Single transaction of ₹{amount:.2f} consumes over 85% of the mandate cap "
-                    f"(₹{mandate.amount_cap:.2f}) for a 'new' risk-tier agent. Awaiting merchant confirmation."
+                    f"High-Value Single Transaction: Charge of ₹{amount:.2f} in '{category}' "
+                    f"exceeds merchant automated clearance limit (₹100,000.00). Awaiting manual sign-off."
+                )
+            }
+
+        # Rule B: New agent consuming > 85% of mandate cap in a single attempt
+        if agent.risk_tier == "new" and amount > (0.85 * mandate.amount_cap):
+            pct = (amount / mandate.amount_cap) * 100
+            return {
+                "decision": "escalated",
+                "reason": (
+                    f"Cap Exhaustion Alert: 'new' tier agent '{agent.id}' attempting transaction of ₹{amount:.2f} "
+                    f"consuming {pct:.1f}% of granted mandate cap (₹{mandate.amount_cap:.2f}). Awaiting merchant confirmation."
                 )
             }
         
+        # Rule C: Flagged agent attempting > 75% of their constrained cap
         if agent.risk_tier == "flagged" and amount > (0.75 * mandate.amount_cap):
+            pct = (amount / mandate.amount_cap) * 100
             return {
                 "decision": "escalated",
                 "reason": (
-                    f"Risk Escalation: Flagged agent '{agent.id}' attempting high-value transaction of ₹{amount:.2f} "
-                    f"(>75% of constrained cap ₹{mandate.amount_cap:.2f}). Awaiting merchant manual review."
+                    f"Flagged Agent Anomaly: Constrained agent '{agent.id}' attempting high-value transaction of ₹{amount:.2f} "
+                    f"({pct:.1f}% of constrained cap ₹{mandate.amount_cap:.2f}). Escalated for manual merchant authorization."
                 )
             }
 
