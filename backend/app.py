@@ -14,7 +14,7 @@ from .simulator import SafetyLayerSimulator
 # Initialize SQLite tables
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Agentic Commerce Safety Layer API")
+app = FastAPI(title="Mandate Layer — Agentic Commerce Safety Layer API")
 
 # Allow CORS
 app.add_middleware(

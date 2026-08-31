@@ -6,7 +6,7 @@ if __name__ == "__main__":
     frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
     os.makedirs(frontend_dir, exist_ok=True)
     
-    print("Starting Agentic Commerce Safety Layer server...")
+    print("Starting Mandate Layer — Agentic Commerce Safety Layer server...")
     print("Web UI will be accessible at: http://localhost:8000")
     print("Websocket live stream at: ws://localhost:8000/ws/live")
     print("Press Ctrl+C to terminate the server.\n")
