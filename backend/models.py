@@ -1,8 +1,17 @@
 import datetime
 import json
+from typing import Optional
 from sqlalchemy import Column, Integer, String, Float, DateTime, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from .database import Base
+
+def format_utc_iso(dt: Optional[datetime.datetime]) -> Optional[str]:
+    """Ensure datetime is serialized as timezone-aware ISO 8601 UTC string (+00:00)."""
+    if not dt:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    return dt.isoformat()
 
 class AgentIdentity(Base):
     __tablename__ = "agent_identities"
@@ -22,7 +31,7 @@ class AgentIdentity(Base):
         return {
             "id": self.id,
             "name": self.name,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": format_utc_iso(self.created_at),
             "risk_tier": self.risk_tier,
             "violation_count": self.violation_count
         }
@@ -57,8 +66,8 @@ class Mandate(Base):
             "merchant_id": self.merchant_id,
             "category": self.category,
             "amount_cap": self.amount_cap,
-            "valid_from": self.valid_from.isoformat() if self.valid_from else None,
-            "valid_until": self.valid_until.isoformat() if self.valid_until else None,
+            "valid_from": format_utc_iso(self.valid_from),
+            "valid_until": format_utc_iso(self.valid_until),
             "status": self.status,
             "negotiation_log": logs
         }
@@ -86,7 +95,7 @@ class TransactionAttempt(Base):
             "agent_id": self.agent_id,
             "amount": self.amount,
             "category": self.category,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "timestamp": format_utc_iso(self.timestamp),
             "decision": self.decision,
             "reason": self.reason
         }
@@ -117,7 +126,7 @@ class Flag(Base):
             "type": self.type,
             "related_transaction_ids": txs,
             "detail": self.detail,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None
+            "timestamp": format_utc_iso(self.timestamp)
         }
 
 class MerchantPolicy(Base):
@@ -152,6 +161,7 @@ class RiskTierHistory(Base):
             "agent_id": self.agent_id,
             "old_tier": self.old_tier,
             "new_tier": self.new_tier,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "timestamp": format_utc_iso(self.timestamp),
             "reason": self.reason
         }
+

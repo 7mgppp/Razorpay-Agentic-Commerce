@@ -282,11 +282,27 @@ function updateSimulatorButtonUI() {
     }
 }
 
-// 6. Render Utilities
+// 6. Render Utilities (Timezone-Aware UTC to Local Time Conversion)
+function parseUtcDate(dateStr) {
+    if (!dateStr) return null;
+    if (dateStr instanceof Date) return dateStr;
+    // If ISO string lacks timezone offset/Z, explicitly append Z so browser treats it as UTC
+    if (typeof dateStr === "string" && !dateStr.endsWith("Z") && !dateStr.includes("+") && !dateStr.match(/T.*-\d{2}:\d{2}$/)) {
+        return new Date(dateStr + "Z");
+    }
+    return new Date(dateStr);
+}
+
 function formatTime(dateStr) {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
+    const date = parseUtcDate(dateStr);
+    if (!date || isNaN(date.getTime())) return "";
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function formatDateTime(dateStr) {
+    const date = parseUtcDate(dateStr);
+    if (!date || isNaN(date.getTime())) return "";
+    return date.toLocaleString();
 }
 
 // Render Overview View (KPIs & Top 2-3 Alerts)
@@ -435,7 +451,7 @@ function renderTransactions() {
                     <div class="drawer-meta-row">
                         <span><strong>Mandate ID:</strong> ${tx.mandate_id || 'N/A'}</span>
                         <span><strong>Category:</strong> ${tx.category}</span>
-                        <span><strong>Timestamp:</strong> ${new Date(tx.timestamp).toLocaleString()}</span>
+                        <span><strong>Timestamp:</strong> ${formatDateTime(tx.timestamp)}</span>
                         ${tx.decision === 'escalated' ? `
                         <div style="display:flex; gap:8px;">
                             <button class="btn-approve" onclick="resolveEscalation('${tx.id}', 'approved')"><i class="fa-solid fa-check"></i> Approve</button>
@@ -712,7 +728,7 @@ async function showHistoryModal(agentId) {
             }
 
             timeline.innerHTML = history.map(item => {
-                const itemTime = new Date(item.timestamp).toLocaleString();
+                const itemTime = formatDateTime(item.timestamp);
                 let itemClass = "new";
                 if (item.new_tier === "established") itemClass = "established";
                 else if (item.new_tier === "flagged") itemClass = "flagged";
