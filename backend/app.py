@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 from .database import get_db, Base, engine, SessionLocal
 from .models import AgentIdentity, Mandate, TransactionAttempt, Flag, MerchantPolicy, RiskTierHistory
@@ -67,10 +67,18 @@ async def shutdown_event():
 
 # Pydantic Schemas for Requests
 class ResolveEscalationRequest(BaseModel):
-    approved: bool
+    approved: Optional[bool] = None
+    resolution: Optional[str] = None
+
+    def is_approved(self) -> bool:
+        if self.approved is not None:
+            return self.approved
+        if self.resolution is not None:
+            return self.resolution.lower() == "approved"
+        return False
 
 class ResetAgentRequest(BaseModel):
-    target_tier: str = "established"
+    target_tier: Optional[str] = "established"
 
 # --- REST Endpoints ---
 
@@ -111,6 +119,7 @@ async def toggle_simulator():
     return {"simulator_running": simulator.running}
 
 @app.post("/api/escalation/{tx_id}/resolve")
+@app.post("/api/escalations/{tx_id}/resolve")
 async def resolve_escalation(tx_id: str, payload: ResolveEscalationRequest, db: Session = Depends(get_db)):
     tx = db.query(TransactionAttempt).filter(TransactionAttempt.id == tx_id).first()
     if not tx:
@@ -119,7 +128,7 @@ async def resolve_escalation(tx_id: str, payload: ResolveEscalationRequest, db: 
     if tx.decision != "escalated":
         raise HTTPException(status_code=400, detail="Transaction is not in escalated status")
 
-    if payload.approved:
+    if payload.is_approved():
         tx.decision = "approved"
         tx.reason = f"Merchant Approved: Transaction was manually reviewed and approved. original reasoning: {tx.reason}"
     else:
@@ -160,21 +169,22 @@ async def resolve_escalation(tx_id: str, payload: ResolveEscalationRequest, db: 
     return tx.to_dict()
 
 @app.post("/api/agents/{agent_id}/reset")
-async def reset_agent(agent_id: str, payload: ResetAgentRequest, db: Session = Depends(get_db)):
+async def reset_agent(agent_id: str, payload: Optional[ResetAgentRequest] = None, db: Session = Depends(get_db)):
     agent = db.query(AgentIdentity).filter(AgentIdentity.id == agent_id).first()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
+    target_tier = payload.target_tier if payload and payload.target_tier else "established"
     old_tier = agent.risk_tier
-    agent.risk_tier = payload.target_tier
+    agent.risk_tier = target_tier
     agent.violation_count = 0
     
     # Risk-tier history logging on reset
     history = RiskTierHistory(
         agent_id=agent.id,
         old_tier=old_tier,
-        new_tier=payload.target_tier,
-        reason=f"Merchant reset: risk tier manually updated to '{payload.target_tier}'"
+        new_tier=target_tier,
+        reason=f"Merchant reset: risk tier manually updated to '{target_tier}'"
     )
     db.add(history)
     db.commit()

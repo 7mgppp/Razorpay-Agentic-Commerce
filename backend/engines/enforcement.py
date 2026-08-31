@@ -81,7 +81,7 @@ def enforce_transaction(
 
     # 6. Check for human escalation logic
     # Rule: Escalate if a transaction consumes > 85% of the total mandate cap in a single attempt for a 'new' agent.
-    # Also escalate if the agent has a violation history (violation_count > 0) but is within current mandate limits.
+    # Also escalate if a 'flagged' agent attempts > 75% of their constrained cap.
     agent = mandate.agent
     if agent:
         if agent.risk_tier == "new" and amount > (0.85 * mandate.amount_cap):
@@ -93,12 +93,12 @@ def enforce_transaction(
                 )
             }
         
-        if agent.violation_count > 0:
+        if agent.risk_tier == "flagged" and amount > (0.75 * mandate.amount_cap):
             return {
                 "decision": "escalated",
                 "reason": (
-                    f"Risk Escalation: Agent '{agent.id}' has a history of {agent.violation_count} rule violations. "
-                    f"Escalating transaction of ₹{amount:.2f} to manual review as a precaution."
+                    f"Risk Escalation: Flagged agent '{agent.id}' attempting high-value transaction of ₹{amount:.2f} "
+                    f"(>75% of constrained cap ₹{mandate.amount_cap:.2f}). Awaiting merchant manual review."
                 )
             }
 

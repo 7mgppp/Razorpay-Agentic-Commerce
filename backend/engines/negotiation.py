@@ -6,10 +6,10 @@ from ..models import AgentIdentity, Mandate, MerchantPolicy
 
 # Default Fallback Policies if DB is empty
 DEFAULT_POLICIES = {
-    "electronics": {"new": 16000.0, "established": 80000.0, "flagged": 4000.0},
-    "office_supplies": {"new": 8000.0, "established": 40000.0, "flagged": 1500.0},
-    "cloud_services": {"new": 40000.0, "established": 400000.0, "flagged": 8000.0},
-    "default": {"new": 8000.0, "established": 40000.0, "flagged": 800.0}
+    "electronics": {"new": 16000.0, "established": 80000.0, "flagged": 8000.0},
+    "office_supplies": {"new": 12000.0, "established": 40000.0, "flagged": 4000.0},
+    "cloud_services": {"new": 40000.0, "established": 240000.0, "flagged": 12000.0},
+    "default": {"new": 12000.0, "established": 40000.0, "flagged": 4000.0}
 }
 
 def get_policy_limit(db: Session, category: str, risk_tier: str) -> float:

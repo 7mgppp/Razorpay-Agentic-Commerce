@@ -5,7 +5,7 @@ import uuid
 import json
 from sqlalchemy.orm import Session
 from .database import SessionLocal
-from .models import AgentIdentity, Mandate, TransactionAttempt, Flag, MerchantPolicy
+from .models import AgentIdentity, Mandate, TransactionAttempt, Flag, MerchantPolicy, RiskTierHistory
 from .engines.negotiation import negotiate_mandate
 from .engines.enforcement import enforce_transaction
 from .engines.detection import detect_velocity, detect_collusion
@@ -34,11 +34,10 @@ class SafetyLayerSimulator:
         counter = 0
         while self.running:
             try:
-                # Every tick (2 seconds), choose an action
                 await asyncio.sleep(2.5)
                 counter += 1
                 
-                # Setup base environment (seed agents & policies)
+                # Setup base environment & policies
                 self.seed_static_data()
 
                 # Action triggers based on timing loops to keep the dashboard interesting:
@@ -58,7 +57,7 @@ class SafetyLayerSimulator:
                     # 5. Trigger Single-Transaction Violations (Direct block: wrong category, over cap)
                     await self.simulate_direct_violations()
                 else:
-                    # 6. Normal compliant transaction
+                    # 6. Normal compliant transaction (steady stream of APPROVED transactions)
                     await self.simulate_normal_transaction()
 
             except Exception as e:
@@ -69,23 +68,24 @@ class SafetyLayerSimulator:
         """Seed initial agents and merchant policies into the database if not present."""
         db = SessionLocal()
         try:
-            # Clear old policies to ensure scaled INR values are loaded
-            db.query(MerchantPolicy).delete()
-            
             # Seed Merchant Policies
             policies = [
-                ("electronics", "new", 12000.0),
+                ("electronics", "new", 16000.0),
                 ("electronics", "established", 80000.0),
-                ("electronics", "flagged", 2500.0),
-                ("office_supplies", "new", 8000.0),
+                ("electronics", "flagged", 8000.0),
+                ("office_supplies", "new", 12000.0),
                 ("office_supplies", "established", 40000.0),
-                ("office_supplies", "flagged", 1200.0),
-                ("cloud_services", "new", 32000.0),
+                ("office_supplies", "flagged", 4000.0),
+                ("cloud_services", "new", 40000.0),
                 ("cloud_services", "established", 240000.0),
-                ("cloud_services", "flagged", 4000.0),
+                ("cloud_services", "flagged", 12000.0),
             ]
-            for category, risk_tier, limit in policies:
-                db.add(MerchantPolicy(category=category, risk_tier=risk_tier, amount_limit=limit))
+            
+            existing_policies = db.query(MerchantPolicy).count()
+            if existing_policies == 0:
+                for category, risk_tier, limit in policies:
+                    db.add(MerchantPolicy(category=category, risk_tier=risk_tier, amount_limit=limit))
+                db.commit()
 
             # Seed Agents
             for agent_info in self.active_agents:
@@ -107,11 +107,9 @@ class SafetyLayerSimulator:
         db.commit()
         db.refresh(tx)
         
-        # Reload agent status
         agent = db.query(AgentIdentity).filter(AgentIdentity.id == tx.agent_id).first()
         agent_dict = agent.to_dict() if agent else {}
 
-        # Fetch latest mandate data
         mandate = db.query(Mandate).filter(Mandate.id == tx.mandate_id).first() if tx.mandate_id else None
         mandate_dict = mandate.to_dict() if mandate else {}
 
@@ -129,35 +127,47 @@ class SafetyLayerSimulator:
             await self.broadcast_callback(payload)
 
     async def simulate_normal_transaction(self):
-        """Simulate a standard, fully compliant transaction."""
+        """Simulate a standard, fully compliant transaction that results in an APPROVED ledger item."""
         db = SessionLocal()
         try:
-            agent_info = random.choice(self.active_agents)
-            category = random.choice(["office_supplies", "electronics", "cloud_services"])
-            requested_amount = round(random.uniform(800.0, 6500.0), 2)
+            # Pick established or clean agents for regular business transactions
+            agent_id = random.choice(["agent_procure_bot", "agent_travel_planner", "agent_office_runner"])
+            agent = db.query(AgentIdentity).filter(AgentIdentity.id == agent_id).first()
+            if not agent:
+                return
 
-            # 1. Negotiate Mandate
+            # If enterprise procurement agents were flagged in prior attack cycles, rehabilitate them
+            if agent_id in ["agent_procure_bot", "agent_travel_planner"] and agent.risk_tier == "flagged":
+                agent.risk_tier = "established"
+                agent.violation_count = 0
+                db.commit()
+                db.refresh(agent)
+
+            category = random.choice(["office_supplies", "electronics", "cloud_services"])
+            
+            # Request a reasonable cap based on agent tier & category
+            if agent.risk_tier == "established":
+                requested_cap = random.choice([25000.0, 35000.0, 50000.0])
+            else:
+                requested_cap = random.choice([8000.0, 12000.0, 15000.0])
+
             valid_from = datetime.datetime.utcnow() - datetime.timedelta(minutes=1)
             valid_until = datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
             
-            # Ensure cap is scaled and slightly rounded above transaction amount
-            requested_cap = round((requested_amount + 1500.0) / 100.0) * 100.0
-            
             mandate = negotiate_mandate(
                 db, 
-                agent_id=agent_info["id"],
+                agent_id=agent.id,
                 merchant_id=self.merchant_id,
                 category=category,
                 requested_cap=requested_cap,
                 valid_from=valid_from,
                 valid_until=valid_until,
-                purpose=f"Standard supply buy for {category}"
+                purpose=f"Standard business expenditure for {category}"
             )
             db.add(mandate)
             db.commit()
             db.refresh(mandate)
 
-            # Broadcast negotiation event
             if self.broadcast_callback:
                 await self.broadcast_callback({
                     "type": "negotiation",
@@ -165,11 +175,15 @@ class SafetyLayerSimulator:
                     "agent": mandate.agent.to_dict()
                 })
 
-            # 2. Execute Transaction
+            # Generate a compliant transaction amount strictly within the granted mandate cap (25% to 60% of cap)
+            max_spendable = max(500.0, mandate.amount_cap * 0.60)
+            min_spendable = max(300.0, mandate.amount_cap * 0.20)
+            tx_amount = round(random.uniform(min_spendable, max_spendable), 2)
+
             decision_data = enforce_transaction(
                 db, 
                 mandate=mandate,
-                amount=requested_amount,
+                amount=tx_amount,
                 category=category,
                 timestamp=datetime.datetime.utcnow()
             )
@@ -177,8 +191,8 @@ class SafetyLayerSimulator:
             tx = TransactionAttempt(
                 id=f"tx_{uuid.uuid4().hex[:8]}",
                 mandate_id=mandate.id,
-                agent_id=agent_info["id"],
-                amount=requested_amount,
+                agent_id=agent.id,
+                amount=tx_amount,
                 category=category,
                 timestamp=datetime.datetime.utcnow(),
                 decision=decision_data["decision"],
@@ -190,29 +204,32 @@ class SafetyLayerSimulator:
             db.close()
 
     async def simulate_direct_violations(self):
-        """Simulate a direct rule-based block (e.g. wrong category or transaction exceeding cap)."""
+        """Simulate direct single-transaction rule blocks (wrong category, over cap)."""
         db = SessionLocal()
         try:
-            agent_info = random.choice(self.active_agents)
+            agent = db.query(AgentIdentity).filter(AgentIdentity.id == "agent_temp_guest").first()
+            if not agent:
+                return
+
             category = "electronics"
             
-            # Negotiate a mandate for electronics with small cap
+            # Negotiate a mandate with a small cap of ₹5,000
             mandate = negotiate_mandate(
                 db,
-                agent_id=agent_info["id"],
+                agent_id=agent.id,
                 merchant_id=self.merchant_id,
                 category=category,
-                requested_cap=4000.0,
+                requested_cap=5000.0,
                 valid_from=datetime.datetime.utcnow(),
                 valid_until=datetime.datetime.utcnow() + datetime.timedelta(minutes=10),
-                purpose="Short scope electronics"
+                purpose="Short scope electronics buy"
             )
             db.add(mandate)
             db.commit()
             db.refresh(mandate)
 
-            # Trigger Violation A: Over Cap limit
-            over_cap_amount = 9500.0
+            # Violation A: Exceeding Cap (Attempts ₹12,000 against ₹5,000 cap)
+            over_cap_amount = 12000.0
             decision_data = enforce_transaction(
                 db,
                 mandate=mandate,
@@ -223,7 +240,7 @@ class SafetyLayerSimulator:
             tx = TransactionAttempt(
                 id=f"tx_{uuid.uuid4().hex[:8]}",
                 mandate_id=mandate.id,
-                agent_id=agent_info["id"],
+                agent_id=agent.id,
                 amount=over_cap_amount,
                 category=category,
                 timestamp=datetime.datetime.utcnow(),
@@ -232,20 +249,22 @@ class SafetyLayerSimulator:
             )
             await self.log_and_broadcast(db, tx)
 
-            # Trigger Violation B: Wrong Category
+            await asyncio.sleep(0.5)
+
+            # Violation B: Wrong Category (Attempts 'food_delivery' on 'electronics' mandate)
             wrong_category = "food_delivery"
             decision_data_cat = enforce_transaction(
                 db,
                 mandate=mandate,
-                amount=1600.0,
+                amount=1800.0,
                 category=wrong_category,
                 timestamp=datetime.datetime.utcnow()
             )
             tx_cat = TransactionAttempt(
                 id=f"tx_{uuid.uuid4().hex[:8]}",
                 mandate_id=mandate.id,
-                agent_id=agent_info["id"],
-                amount=1600.0,
+                agent_id=agent.id,
+                amount=1800.0,
                 category=wrong_category,
                 timestamp=datetime.datetime.utcnow(),
                 decision=decision_data_cat["decision"],
@@ -256,60 +275,58 @@ class SafetyLayerSimulator:
             db.close()
 
     async def simulate_expired_mandate_edge_case(self):
-        """
-        Simulate the hard edge case: Mandate expires mid-transaction.
-        Creates a mandate valid for a split second, pauses, then transacts.
-        Shows the transaction rejected gracefully.
-        """
+        """Simulate the edge case: Mandate expires mid-transaction."""
         db = SessionLocal()
         try:
-            agent_info = random.choice(self.active_agents)
+            agent = db.query(AgentIdentity).filter(AgentIdentity.id == "agent_office_runner").first()
+            if not agent:
+                return
+
             category = "office_supplies"
             
-            # Create a mandate with very short validity window
+            # Create a mandate with very short validity (1 second)
             valid_from = datetime.datetime.utcnow()
-            valid_until = datetime.datetime.utcnow() + datetime.timedelta(seconds=1.5)  # Expires in 1.5 seconds
- 
+            valid_until = datetime.datetime.utcnow() + datetime.timedelta(seconds=1.0)
+
             mandate = negotiate_mandate(
                 db,
-                agent_id=agent_info["id"],
+                agent_id=agent.id,
                 merchant_id=self.merchant_id,
                 category=category,
-                requested_cap=6000.0,
+                requested_cap=8000.0,
                 valid_from=valid_from,
                 valid_until=valid_until,
-                purpose="Urgent office supplies (expires quickly)"
+                purpose="Urgent office supplies (short validity)"
             )
             db.add(mandate)
             db.commit()
             db.refresh(mandate)
- 
+
             if self.broadcast_callback:
                 await self.broadcast_callback({
                     "type": "negotiation",
                     "data": mandate.to_dict(),
                     "agent": mandate.agent.to_dict()
                 })
- 
-            # Sleep 3 seconds to guarantee expiration
-            print("Simulator: Pausing 3 seconds to trigger expired-mid-transaction edge case...")
-            await asyncio.sleep(3.0)
- 
-            # Transaction is attempted after mandate expired
+
+            # Sleep 2.5 seconds to ensure the mandate expires
+            print("Simulator: Pausing 2.5 seconds to trigger expired-mid-transaction edge case...")
+            await asyncio.sleep(2.5)
+
             attempt_time = datetime.datetime.utcnow()
             decision_data = enforce_transaction(
                 db,
                 mandate=mandate,
-                amount=3500.0,
+                amount=2400.0,
                 category=category,
                 timestamp=attempt_time
             )
- 
+
             tx = TransactionAttempt(
                 id=f"tx_{uuid.uuid4().hex[:8]}",
                 mandate_id=mandate.id,
-                agent_id=agent_info["id"],
-                amount=3500.0,
+                agent_id=agent.id,
+                amount=2400.0,
                 category=category,
                 timestamp=attempt_time,
                 decision=decision_data["decision"],
@@ -320,13 +337,17 @@ class SafetyLayerSimulator:
             db.close()
 
     async def simulate_escalation_event(self):
-        """Simulate an event that requires manual merchant approval (e.g. consumes > 85% cap)."""
+        """Simulate an event that requires manual review (>85% cap consumed for new agent)."""
         db = SessionLocal()
         try:
-            # Use a new agent to trigger the escalation rule
             agent_id = "agent_temp_guest"
+            agent = db.query(AgentIdentity).filter(AgentIdentity.id == agent_id).first()
+            if agent:
+                agent.risk_tier = "new"  # Ensure it is in 'new' tier for >85% escalation rule
+                db.commit()
+
             category = "electronics"
-            cap = 8000.0
+            cap = 10000.0
             
             mandate = negotiate_mandate(
                 db,
@@ -336,14 +357,14 @@ class SafetyLayerSimulator:
                 requested_cap=cap,
                 valid_from=datetime.datetime.utcnow(),
                 valid_until=datetime.datetime.utcnow() + datetime.timedelta(minutes=10),
-                purpose="One-off electronics purchase"
+                purpose="High-value electronics request"
             )
             db.add(mandate)
             db.commit()
             db.refresh(mandate)
 
-            # Attempt a transaction that is 90% of cap (₹7200.00)
-            large_amount = 7200.0
+            # Attempt a transaction that is 92% of cap (₹9,200.00)
+            large_amount = 9200.0
             decision_data = enforce_transaction(
                 db,
                 mandate=mandate,
@@ -359,7 +380,7 @@ class SafetyLayerSimulator:
                 amount=large_amount,
                 category=category,
                 timestamp=datetime.datetime.utcnow(),
-                decision=decision_data["decision"],  # Will be 'escalated'
+                decision=decision_data["decision"],  # 'escalated'
                 reason=decision_data["reason"]
             )
             await self.log_and_broadcast(db, tx)
@@ -367,12 +388,18 @@ class SafetyLayerSimulator:
             db.close()
 
     async def simulate_velocity_pattern(self):
-        """Simulate a velocity attack: 5 small transactions in rapid succession for a single agent."""
+        """Simulate a velocity attack: 5 rapid transactions for a single agent totaling >= ₹12,000."""
         db = SessionLocal()
         try:
             agent_id = "agent_office_runner"
+            agent = db.query(AgentIdentity).filter(AgentIdentity.id == agent_id).first()
+            if agent:
+                # Reset tier to new so it can negotiate a ₹12,000+ cap
+                agent.risk_tier = "new"
+                db.commit()
+
             category = "office_supplies"
-            cap = 40000.0
+            cap = 20000.0
 
             mandate = negotiate_mandate(
                 db,
@@ -390,9 +417,9 @@ class SafetyLayerSimulator:
 
             print(f"Simulator: Triggering velocity pattern on '{agent_id}'...")
 
-            # Run 5 fast transactions, each completely compliant individually
+            # Run 5 fast transactions of ₹3,000 each (sum ₹15,000 >= ₹12,000 threshold)
             for i in range(5):
-                amount = round(random.uniform(2800.0, 3500.0), 2)
+                amount = 3000.0
                 decision_data = enforce_transaction(
                     db,
                     mandate=mandate,
@@ -412,30 +439,25 @@ class SafetyLayerSimulator:
                     reason=decision_data["reason"]
                 )
                 
-                # Check for velocity alert trigger
                 flag = None
                 if tx.decision == "approved":
                     db.add(tx)
                     db.commit()
-                    # Trigger velocity checker
                     flag = detect_velocity(db, agent_id, self.merchant_id)
 
                 await self.log_and_broadcast(db, tx, flag)
-                
-                # Spacing of transactions is extremely tight (0.3s)
                 await asyncio.sleep(0.3)
         finally:
             db.close()
 
     async def simulate_collusion_pattern(self):
-        """Simulate collusion: 3+ distinct agents purchasing under their caps in a tight window."""
+        """Simulate collusion: 3 distinct agents executing transactions summing to >= ₹24,000 within 30s."""
         db = SessionLocal()
         try:
-            # We need 3 distinct agent identities
             agents_to_use = [
-                {"id": "agent_procure_bot", "cap": 16000.0},
-                {"id": "agent_travel_planner", "cap": 20000.0},
-                {"id": "agent_temp_guest", "cap": 12000.0}
+                {"id": "agent_procure_bot", "cap": 30000.0, "amount": 8800.0},
+                {"id": "agent_travel_planner", "cap": 30000.0, "amount": 9200.0},
+                {"id": "agent_temp_guest", "cap": 16000.0, "amount": 8500.0}
             ]
             category = "electronics"
 
@@ -443,7 +465,11 @@ class SafetyLayerSimulator:
 
             for item in agents_to_use:
                 agent_id = item["id"]
-                
+                agent = db.query(AgentIdentity).filter(AgentIdentity.id == agent_id).first()
+                if agent and agent.risk_tier == "flagged":
+                    agent.risk_tier = "established" if "bot" in agent_id or "planner" in agent_id else "new"
+                    db.commit()
+
                 mandate = negotiate_mandate(
                     db,
                     agent_id=agent_id,
@@ -452,18 +478,16 @@ class SafetyLayerSimulator:
                     requested_cap=item["cap"],
                     valid_from=datetime.datetime.utcnow(),
                     valid_until=datetime.datetime.utcnow() + datetime.timedelta(minutes=10),
-                    purpose="Team electronics budget"
+                    purpose="Coordinated purchase scope"
                 )
                 db.add(mandate)
                 db.commit()
                 db.refresh(mandate)
 
-                # Make an individual purchase under threshold
-                amount = 9000.0
                 decision_data = enforce_transaction(
                     db,
                     mandate=mandate,
-                    amount=amount,
+                    amount=item["amount"],
                     category=category,
                     timestamp=datetime.datetime.utcnow()
                 )
@@ -472,7 +496,7 @@ class SafetyLayerSimulator:
                     id=f"tx_{uuid.uuid4().hex[:8]}",
                     mandate_id=mandate.id,
                     agent_id=agent_id,
-                    amount=amount,
+                    amount=item["amount"],
                     category=category,
                     timestamp=datetime.datetime.utcnow(),
                     decision=decision_data["decision"],
@@ -483,7 +507,6 @@ class SafetyLayerSimulator:
                 if tx.decision == "approved":
                     db.add(tx)
                     db.commit()
-                    # Run collusion detector
                     flag = detect_collusion(db, self.merchant_id)
 
                 await self.log_and_broadcast(db, tx, flag)

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Razorpay Agentic Commerce Safety Layer</title>
+    <title>Razorpay Guard — Agentic Commerce Safety Layer</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,69 +11,282 @@
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Styling -->
-    <link rel="stylesheet" href="style.css?v=1.0.2">
+    <link rel="stylesheet" href="style.css?v=1.1.0">
 </head>
 <body>
     <div class="glass-bg"></div>
     <div class="dashboard-container">
         
-        <!-- Header -->
+        <!-- Header & Top Navigation Bar -->
         <header class="app-header">
-            <div class="header-logo">
-                <i class="fa-solid fa-shield-halved logo-icon"></i>
-                <div class="logo-text">
-                    <h1>Razorpay Guard</h1>
-                    <span>Agentic Commerce Safety Layer</span>
+            <div class="header-left">
+                <div class="header-logo">
+                    <i class="fa-solid fa-shield-halved logo-icon"></i>
+                    <div class="logo-text">
+                        <h1>Razorpay Guard</h1>
+                        <span>Agentic Commerce Safety Layer</span>
+                    </div>
                 </div>
+
+                <!-- Navigation Tabs -->
+                <nav class="nav-tabs" id="nav-tabs">
+                    <button class="nav-tab active" data-view="view-overview" onclick="switchView('view-overview')">
+                        <i class="fa-solid fa-chart-pie"></i> <span>Overview</span>
+                    </button>
+                    <button class="nav-tab" data-view="view-ledger" onclick="switchView('view-ledger')">
+                        <i class="fa-solid fa-receipt"></i> <span>Live Ledger</span>
+                        <span id="ledger-nav-badge" class="badge badge-gray nav-count-badge">0</span>
+                    </button>
+                    <button class="nav-tab" data-view="view-threats" onclick="switchView('view-threats')">
+                        <i class="fa-solid fa-shield-halved"></i> <span>Security Alerts</span>
+                        <span id="threat-nav-badge" class="badge badge-red nav-count-badge">0</span>
+                    </button>
+                    <button class="nav-tab" data-view="view-negotiations" onclick="switchView('view-negotiations')">
+                        <i class="fa-solid fa-handshake"></i> <span>Negotiations</span>
+                        <span id="negotiation-nav-badge" class="badge badge-blue nav-count-badge">0</span>
+                    </button>
+                    <button class="nav-tab" data-view="view-agents" onclick="switchView('view-agents')">
+                        <i class="fa-solid fa-robot"></i> <span>Agent Registry</span>
+                        <span id="agent-nav-badge" class="badge badge-gray nav-count-badge">0</span>
+                    </button>
+                </nav>
             </div>
-            <div class="header-status">
+
+            <div class="header-actions">
+                <!-- Always Visible Pending Reviews Button (Human-in-the-Loop) -->
+                <button id="nav-pending-reviews-btn" class="nav-btn nav-escalation-pill" onclick="switchView('view-reviews')">
+                    <i class="fa-solid fa-triangle-exclamation yellow-text"></i>
+                    <span>Pending Reviews</span>
+                    <span id="escalation-nav-count" class="badge badge-yellow">0</span>
+                </button>
+
+                <!-- WebSocket Status Indicator -->
                 <div id="connection-badge" class="status-indicator disconnected">
                     <span class="pulse-dot"></span>
-                    <span id="connection-text">Connecting WebSocket...</span>
+                    <span id="connection-text">Connecting...</span>
                 </div>
+
+                <!-- Pause/Resume Simulation Button -->
                 <button id="toggle-simulator-btn" class="control-btn shadow-neon">
-                    <i class="fa-solid fa-pause"></i> Pause Simulation
+                    <i class="fa-solid fa-pause"></i> <span>Pause Simulation</span>
                 </button>
             </div>
         </header>
 
-        <!-- Dashboard Layout -->
-        <main class="dashboard-grid">
+        <!-- Dynamic Main Views Container -->
+        <main class="views-wrapper">
             
-            <!-- LEFT PANEL: Agents & Escalations -->
-            <section class="grid-col left-panel">
-                
-                <!-- Escalations Card -->
-                <div class="glass-panel card-escalations neon-border-yellow">
-                    <div class="panel-header">
-                        <h2><i class="fa-solid fa-triangle-exclamation yellow-text"></i> Pending Reviews</h2>
-                        <span id="escalation-count" class="badge badge-yellow">0</span>
+            <!-- ================= VIEW 1: OVERVIEW ================= -->
+            <section id="view-overview" class="view-section active">
+                <!-- KPI Summary Cards Grid -->
+                <div class="overview-kpi-grid">
+                    <div class="kpi-card card-approved">
+                        <div class="kpi-icon-wrapper green-glow">
+                            <i class="fa-solid fa-circle-check green-text"></i>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Approved Transactions</span>
+                            <div class="kpi-value-row">
+                                <span class="kpi-value green-text" id="kpi-approved-count">0</span>
+                                <span class="kpi-sub" id="kpi-approved-sum">₹0.00</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="panel-body">
-                        <div id="escalations-list" class="escalations-container">
-                            <div class="empty-state">
-                                <i class="fa-solid fa-circle-check green-text empty-icon"></i>
-                                <p>No transactions awaiting manual review.</p>
+
+                    <div class="kpi-card card-blocked">
+                        <div class="kpi-icon-wrapper red-glow">
+                            <i class="fa-solid fa-ban red-text"></i>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Blocked Transactions</span>
+                            <div class="kpi-value-row">
+                                <span class="kpi-value red-text" id="kpi-blocked-count">0</span>
+                                <span class="kpi-sub" id="kpi-blocked-sub">0 Violations</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="kpi-card card-escalated clickable-card" onclick="switchView('view-reviews')">
+                        <div class="kpi-icon-wrapper yellow-glow">
+                            <i class="fa-solid fa-triangle-exclamation yellow-text"></i>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Pending Reviews</span>
+                            <div class="kpi-value-row">
+                                <span class="kpi-value yellow-text" id="kpi-escalated-count">0</span>
+                                <span class="kpi-sub badge badge-yellow">Action Required</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="kpi-card card-flagged-agents clickable-card" onclick="switchView('view-agents')">
+                        <div class="kpi-icon-wrapper red-glow">
+                            <i class="fa-solid fa-robot red-text"></i>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Flagged Agents</span>
+                            <div class="kpi-value-row">
+                                <span class="kpi-value red-text" id="kpi-flagged-agents-count">0</span>
+                                <span class="kpi-sub" id="kpi-total-agents-count">of 4 Identified</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Agent Directory -->
-                <div class="glass-panel card-agents">
-                    <div class="panel-header">
-                        <h2><i class="fa-solid fa-robot"></i> Buyer Agent Identities</h2>
-                        <span id="agent-count" class="badge badge-gray">0</span>
+                <!-- Overview Two-Column Content -->
+                <div class="overview-content-grid">
+                    <!-- Left: Recent Security Threat Highlights (Top 2-3) -->
+                    <div class="glass-panel overview-threats-panel neon-border-red">
+                        <div class="panel-header">
+                            <div class="panel-header-title">
+                                <h2><i class="fa-solid fa-shield-halved red-text"></i> Recent Security Threat Alerts</h2>
+                                <span class="badge badge-red">Active Sliding Window</span>
+                            </div>
+                            <button class="view-all-btn" onclick="switchView('view-threats')">
+                                View All Security Alerts <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                        <div class="panel-body">
+                            <div id="overview-threats-list" class="flags-container">
+                                <!-- Top 2-3 threat cards rendered dynamically -->
+                            </div>
+                        </div>
                     </div>
-                    <div class="panel-body">
+
+                    <!-- Right: Merchant Policy Reference & System Rules -->
+                    <div class="glass-panel overview-policies-panel">
+                        <div class="panel-header">
+                            <div class="panel-header-title">
+                                <h2><i class="fa-solid fa-gavel blue-text"></i> Global Merchant Safety Policies</h2>
+                                <span class="badge badge-gray">Active Limits</span>
+                            </div>
+                        </div>
+                        <div class="panel-body">
+                            <div class="policy-details">
+                                <div class="policy-item">
+                                    <span class="policy-cat"><i class="fa-solid fa-laptop"></i> Electronics Cap</span>
+                                    <span class="policy-limits"><span class="tier-new">New: ₹16,000</span> <span class="bullet-sep">&bull;</span> <span class="tier-est">Est: ₹80,000</span> <span class="bullet-sep">&bull;</span> <span class="tier-flagged">Flagged: ₹8,000</span></span>
+                                </div>
+                                <div class="policy-item">
+                                    <span class="policy-cat"><i class="fa-solid fa-box-archive"></i> Office Supplies Cap</span>
+                                    <span class="policy-limits"><span class="tier-new">New: ₹12,000</span> <span class="bullet-sep">&bull;</span> <span class="tier-est">Est: ₹40,000</span> <span class="bullet-sep">&bull;</span> <span class="tier-flagged">Flagged: ₹4,000</span></span>
+                                </div>
+                                <div class="policy-item">
+                                    <span class="policy-cat"><i class="fa-solid fa-cloud"></i> Cloud Services Cap</span>
+                                    <span class="policy-limits"><span class="tier-new">New: ₹40,000</span> <span class="bullet-sep">&bull;</span> <span class="tier-est">Est: ₹2,40,000</span> <span class="bullet-sep">&bull;</span> <span class="tier-flagged">Flagged: ₹12,000</span></span>
+                                </div>
+                                <div class="policy-rules">
+                                    <div class="rule-chip"><i class="fa-solid fa-gauge-high"></i> <strong>Velocity Rule:</strong> 4+ purchases under 30s totaling &ge; ₹12,000.</div>
+                                    <div class="rule-chip"><i class="fa-solid fa-network-wired"></i> <strong>Collusion Rule:</strong> 3+ distinct agents under 30s totaling &ge; ₹24,000 (each &lt; ₹12,000).</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= VIEW 2: LIVE LEDGER ================= -->
+            <section id="view-ledger" class="view-section">
+                <div class="glass-panel ledger-panel">
+                    <div class="panel-header ledger-header">
+                        <div class="main-feed-title-block">
+                            <h2><i class="fa-solid fa-receipt green-text"></i> Real-time Transaction Ledger</h2>
+                            <span class="feed-subtitle">Explainable, Bounded & Gated Event Evaluation</span>
+                        </div>
+                        
+                        <!-- Ledger Filters -->
+                        <div class="ledger-controls">
+                            <div class="filter-btn-group" id="ledger-filter-group">
+                                <button class="filter-pill active" onclick="setLedgerFilter('all')">
+                                    All <span id="filter-count-all" class="filter-count">0</span>
+                                </button>
+                                <button class="filter-pill pill-approved" onclick="setLedgerFilter('approved')">
+                                    <i class="fa-solid fa-check"></i> Approved <span id="filter-count-approved" class="filter-count">0</span>
+                                </button>
+                                <button class="filter-pill pill-blocked" onclick="setLedgerFilter('blocked')">
+                                    <i class="fa-solid fa-ban"></i> Blocked <span id="filter-count-blocked" class="filter-count">0</span>
+                                </button>
+                                <button class="filter-pill pill-escalated" onclick="setLedgerFilter('escalated')">
+                                    <i class="fa-solid fa-triangle-exclamation"></i> Escalated <span id="filter-count-escalated" class="filter-count">0</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel-body ledger-body">
+                        <!-- Compact Expandable Ledger Rows Table/List -->
+                        <div class="ledger-table-header">
+                            <span class="lth-expand"></span>
+                            <span class="lth-time">Time</span>
+                            <span class="lth-txid">TX ID</span>
+                            <span class="lth-agent">Agent Identity</span>
+                            <span class="lth-category">Category</span>
+                            <span class="lth-amount">Amount</span>
+                            <span class="lth-decision">Decision</span>
+                        </div>
+                        <div id="transactions-feed" class="ledger-rows-container">
+                            <!-- Populated with compact single-line expandable rows -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= VIEW 3: SECURITY ALERTS ================= -->
+            <section id="view-threats" class="view-section">
+                <div class="glass-panel threats-full-panel neon-border-red">
+                    <div class="panel-header">
+                        <div class="main-feed-title-block">
+                            <h2><i class="fa-solid fa-shield-halved red-text"></i> Security Threat Alerts</h2>
+                            <span class="feed-subtitle">Sliding window velocity spikes and cross-agent collusion attack detections</span>
+                        </div>
+                        <span id="flag-count" class="badge badge-red">0 Alerts</span>
+                    </div>
+                    <div class="panel-body threats-body">
+                        <div id="flags-list" class="flags-grid-container">
+                            <!-- Full detail security alert cards -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= VIEW 4: NEGOTIATIONS ================= -->
+            <section id="view-negotiations" class="view-section">
+                <div class="glass-panel negotiations-full-panel">
+                    <div class="panel-header">
+                        <div class="main-feed-title-block">
+                            <h2><i class="fa-solid fa-handshake blue-text"></i> Mandate Scope Negotiations</h2>
+                            <span class="feed-subtitle">Rule-based mandate scoping, counter-offers, and merchant policy justifications</span>
+                        </div>
+                        <span id="negotiation-count" class="badge badge-blue">0 Mandates</span>
+                    </div>
+                    <div class="panel-body negotiations-body">
+                        <div id="negotiations-list" class="negotiations-grid-container">
+                            <!-- Full width negotiation cards -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= VIEW 5: AGENT REGISTRY ================= -->
+            <section id="view-agents" class="view-section">
+                <div class="glass-panel agents-full-panel">
+                    <div class="panel-header">
+                        <div class="main-feed-title-block">
+                            <h2><i class="fa-solid fa-robot blue-text"></i> Buyer Agent Identities Registry</h2>
+                            <span class="feed-subtitle">Autonomous agent directory, risk tiers, violation records, and transition history</span>
+                        </div>
+                        <span id="agent-count" class="badge badge-gray">0 Agents</span>
+                    </div>
+                    <div class="panel-body agents-body">
                         <div class="agents-table-container">
                             <table class="agents-table">
                                 <thead>
                                     <tr>
-                                        <th>Agent ID</th>
-                                        <th>Risk Tier</th>
-                                        <th>Violations</th>
-                                        <th>Action</th>
+                                        <th class="col-agent">Agent Identity</th>
+                                        <th class="col-tier">Risk Tier</th>
+                                        <th class="col-violations">Violations</th>
+                                        <th class="col-history">Risk Timeline</th>
+                                        <th class="col-action">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody id="agents-list">
@@ -83,85 +296,21 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Live Policy Parameters Info Box -->
-                <div class="glass-panel card-policy-info">
-                    <div class="panel-header">
-                        <h2><i class="fa-solid fa-gavel"></i> Global Merchant Policies</h2>
-                    </div>
-                    <div class="panel-body">
-                        <div class="policy-details">
-                            <div class="policy-item">
-                                <span class="policy-cat">Electronics Cap</span>
-                                <span class="policy-limits"><span class="tier-new">New: ₹12,000</span> | <span class="tier-est">Est: ₹80,000</span></span>
-                            </div>
-                            <div class="policy-item">
-                                <span class="policy-cat">Office Supplies Cap</span>
-                                <span class="policy-limits"><span class="tier-new">New: ₹8,000</span> | <span class="tier-est">Est: ₹40,000</span></span>
-                            </div>
-                            <div class="policy-item">
-                                <span class="policy-cat">Cloud Services Cap</span>
-                                <span class="policy-limits"><span class="tier-new">New: ₹32,000</span> | <span class="tier-est">Est: ₹2,40,000</span></span>
-                            </div>
-                            <div class="policy-rules">
-                                <small><i class="fa-solid fa-info-circle"></i> Velocity Alert: 4+ purchases under 30s totaling &ge; ₹12,000.</small>
-                                <small><i class="fa-solid fa-info-circle"></i> Collusion Alert: 3+ distinct agents transacting under 30s totaling &ge; ₹24,000.</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </section>
 
-            <!-- MIDDLE PANEL: Live Transaction Attempts Feed -->
-            <section class="grid-col middle-panel glass-panel main-feed">
-                <div class="panel-header">
-                    <h2><i class="fa-solid fa-receipt"></i> Real-time Transaction Ledger</h2>
-                    <div class="feed-filters">
-                        <span class="feed-subtitle">Explainable, Bounded & Gated Feed</span>
-                    </div>
-                </div>
-                <div class="panel-body feed-body">
-                    <div id="transactions-feed" class="feed-container">
-                        <!-- Filled dynamically -->
-                        <div class="empty-state">
-                            <i class="fa-solid fa-rotate spin empty-icon"></i>
-                            <p>Awaiting ledger events...</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- RIGHT PANEL: Negotiations & Alerts -->
-            <section class="grid-col right-panel">
-                
-                <!-- Security Alerts (Flags) Panel -->
-                <div class="glass-panel card-flags neon-border-red">
+            <!-- ================= VIEW 6: PENDING REVIEWS ================= -->
+            <section id="view-reviews" class="view-section">
+                <div class="glass-panel reviews-full-panel neon-border-yellow">
                     <div class="panel-header">
-                        <h2><i class="fa-solid fa-shield-halved red-text"></i> Security Threat Alerts</h2>
-                        <span id="flag-count" class="badge badge-red">0</span>
-                    </div>
-                    <div class="panel-body">
-                        <div id="flags-list" class="flags-container">
-                            <div class="empty-state">
-                                <i class="fa-solid fa-shield-virus green-text empty-icon"></i>
-                                <p>System secure. No anomalous patterns flagged.</p>
-                            </div>
+                        <div class="main-feed-title-block">
+                            <h2><i class="fa-solid fa-triangle-exclamation yellow-text"></i> Pending Reviews (Human-in-the-Loop)</h2>
+                            <span class="feed-subtitle">Transactions escalated due to high cap consumption or anomalous risk triggers</span>
                         </div>
+                        <span id="escalation-count" class="badge badge-yellow">0 Pending</span>
                     </div>
-                </div>
-
-                <!-- Scope Negotiation Panel -->
-                <div class="glass-panel card-negotiations">
-                    <div class="panel-header">
-                        <h2><i class="fa-solid fa-handshake"></i> Mandate Scope Negotiations</h2>
-                        <span id="negotiation-count" class="badge badge-blue">0</span>
-                    </div>
-                    <div class="panel-body">
-                        <div id="negotiations-list" class="negotiations-container">
-                            <div class="empty-state">
-                                <i class="fa-solid fa-file-invoice empty-icon"></i>
-                                <p>No mandate negotiations logged yet.</p>
-                            </div>
+                    <div class="panel-body reviews-body">
+                        <div id="escalations-list" class="escalations-grid-container">
+                            <!-- Escalation review cards -->
                         </div>
                     </div>
                 </div>
@@ -173,7 +322,7 @@
     <div id="history-modal" class="modal">
         <div class="modal-content glass-panel">
             <div class="modal-header">
-                <h2><i class="fa-solid fa-clock-rotate-left"></i> Agent Risk Tier History</h2>
+                <h2><i class="fa-solid fa-clock-rotate-left blue-text"></i> Agent Risk Tier History</h2>
                 <button class="close-modal-btn" onclick="closeHistoryModal()">&times;</button>
             </div>
             <div class="modal-body">
@@ -186,6 +335,6 @@
     </div>
 
     <!-- Scripts -->
-    <script src="app.js?v=1.0.2"></script>
+    <script src="app.js?v=1.1.0"></script>
 </body>
 </html>
