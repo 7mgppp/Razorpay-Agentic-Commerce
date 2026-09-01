@@ -645,6 +645,12 @@ function renderThreatCardHtml(flag) {
                 <div class="threat-detail-text">
                     <strong>Finding Details:</strong> ${flag.detail}
                 </div>
+                ${flag.type === "intent_mismatch" || flag.ai_reasoning ? `
+                <div class="threat-ai-reasoning-row">
+                    <strong><i class="fa-solid fa-brain cyan-text"></i> AI Reasoning:</strong>
+                    <span class="threat-ai-reasoning-text">${flag.ai_reasoning || 'Rule-based (AI unavailable)'}</span>
+                    ${flag.source === 'ai_llm' ? `<span class="badge badge-cyan" style="font-size:0.7rem; padding: 2px 7px; margin-left: 6px;">${(flag.confidence || 'HIGH').toUpperCase()} CONFIDENCE</span>` : `<span class="badge badge-gray" style="font-size:0.7rem; padding: 2px 7px; margin-left: 6px;">Rule-based (AI unavailable)</span>`}
+                </div>` : ''}
                 <div class="threat-meta-row">
                     <div class="threat-tx-chips">
                         <strong>Linked Transactions:</strong> ${txLinks || 'None'}

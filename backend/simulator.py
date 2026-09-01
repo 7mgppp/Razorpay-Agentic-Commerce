@@ -165,6 +165,9 @@ class SafetyLayerSimulator:
                     type="intent_mismatch",
                     related_transaction_ids=json.dumps([tx.id]),
                     detail=mismatch_detail,
+                    ai_reasoning=intent_eval.get("ai_reasoning"),
+                    confidence=intent_eval.get("confidence"),
+                    source=intent_eval.get("source"),
                     timestamp=datetime.datetime.utcnow()
                 )
                 db.add(intent_flag)

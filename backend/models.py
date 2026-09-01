@@ -107,9 +107,12 @@ class Flag(Base):
 
     id = Column(String, primary_key=True, index=True)
     agent_id = Column(String, ForeignKey("agent_identities.id"), nullable=False)
-    type = Column(String, nullable=False)  # "velocity", "collusion"
+    type = Column(String, nullable=False)  # "velocity", "collusion", "intent_mismatch"
     related_transaction_ids = Column(Text, nullable=False)  # JSON-encoded array of transaction strings
     detail = Column(String, nullable=False)
+    ai_reasoning = Column(Text, nullable=True)
+    confidence = Column(String, nullable=True)  # "high", "medium", "low"
+    source = Column(String, nullable=True)  # "ai_llm", "rule_based_fallback"
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Relationships
@@ -128,6 +131,9 @@ class Flag(Base):
             "type": self.type,
             "related_transaction_ids": txs,
             "detail": self.detail,
+            "ai_reasoning": self.ai_reasoning,
+            "confidence": self.confidence,
+            "source": self.source,
             "timestamp": format_utc_iso(self.timestamp)
         }
 

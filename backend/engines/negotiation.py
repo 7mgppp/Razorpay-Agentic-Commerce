@@ -56,7 +56,7 @@ def call_llm_counter_offer(
     openai_key = os.getenv("OPENAI_API_KEY")
 
     if gemini_key:
-        candidate_models = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-1.5-flash"]
+        candidate_models = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.7-flash", "gemini-3.1-flash-lite"]
         prompt = (
             f"You are the autonomous Merchant Risk & Policy Negotiator for Razorpay Mandate Layer.\n"
             f"An AI buyer agent requested a mandate exceeding standard policy limits.\n"
