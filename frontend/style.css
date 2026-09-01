@@ -260,6 +260,67 @@ body {
     box-shadow: 0 4px 15px rgba(0, 230, 118, 0.3);
 }
 
+/* Simulation Controls Group (Pause + Speed Dropdown) */
+.sim-controls-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 3px;
+    border-radius: 12px;
+    border: 1px solid var(--border-glass);
+}
+
+.speed-control-box {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(0, 229, 255, 0.06);
+    border: 1px solid rgba(0, 229, 255, 0.35);
+    box-shadow: 0 0 12px rgba(0, 229, 255, 0.12);
+    padding: 6px 12px;
+    border-radius: 9px;
+    transition: all 0.2s ease;
+}
+
+.speed-control-box:hover {
+    border-color: rgba(0, 229, 255, 0.6);
+    background: rgba(0, 229, 255, 0.1);
+    box-shadow: 0 0 16px rgba(0, 229, 255, 0.25);
+}
+
+.speed-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #00e5ff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.speed-select {
+    background: #0f172a;
+    color: #ffffff;
+    border: 1px solid rgba(0, 229, 255, 0.4);
+    font-family: var(--font-body);
+    font-size: 0.86rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    outline: none;
+}
+
+.speed-select:focus {
+    border-color: #00e5ff;
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+}
+
+.speed-select option {
+    background: #0f172a;
+    color: #f8fafc;
+    padding: 8px;
+}
+
 /* Dynamic Views Container */
 .views-wrapper {
     flex-grow: 1;
@@ -362,12 +423,18 @@ body {
 .badge-yellow { background: rgba(255, 196, 0, 0.15); color: var(--color-yellow); border: 1px solid rgba(255, 196, 0, 0.35); }
 .badge-blue { background: rgba(41, 121, 255, 0.15); color: var(--color-blue); border: 1px solid rgba(41, 121, 255, 0.35); }
 .badge-gray { background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-glass); }
+.badge-orange { background: rgba(255, 145, 0, 0.15); color: #ff9100; border: 1px solid rgba(255, 145, 0, 0.4); box-shadow: 0 0 8px rgba(255, 145, 0, 0.18); }
+.badge-purple, .badge-countered { background: rgba(168, 85, 247, 0.18); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.45); box-shadow: 0 0 10px rgba(168, 85, 247, 0.2); }
+.badge-cyan { background: rgba(0, 229, 255, 0.15); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.45); box-shadow: 0 0 10px rgba(0, 229, 255, 0.2); }
 
 /* Color Texts */
 .green-text { color: var(--color-green); }
 .red-text { color: var(--color-red); }
 .yellow-text { color: var(--color-yellow); }
 .blue-text { color: var(--color-blue); }
+.orange-text, .text-orange { color: #ff9100; }
+.purple-text, .text-purple { color: #c084fc; }
+.cyan-text, .text-cyan { color: #00e5ff; }
 
 /* -----------------------------------------
    VIEW 1: OVERVIEW STYLES
@@ -620,6 +687,27 @@ body {
 .filter-pill.pill-escalated.active {
     background: rgba(255, 196, 0, 0.2);
     color: var(--color-yellow);
+}
+
+.filter-pill.pill-velocity.active {
+    background: rgba(255, 145, 0, 0.2);
+    border-color: rgba(255, 145, 0, 0.5);
+    color: #ff9100;
+    box-shadow: 0 0 12px rgba(255, 145, 0, 0.2);
+}
+
+.filter-pill.pill-collusion.active {
+    background: rgba(255, 23, 68, 0.2);
+    border-color: rgba(255, 23, 68, 0.5);
+    color: #ff1744;
+    box-shadow: 0 0 12px rgba(255, 23, 68, 0.2);
+}
+
+.filter-pill.pill-intent.active {
+    background: rgba(0, 229, 255, 0.2);
+    border-color: rgba(0, 229, 255, 0.5);
+    color: #00e5ff;
+    box-shadow: 0 0 12px rgba(0, 229, 255, 0.2);
 }
 
 .filter-count {
@@ -886,47 +974,250 @@ body {
 }
 .btn-deny:hover { background: var(--color-red); color: white; }
 
-/* Security Flag Cards */
-.flag-card {
-    background: rgba(255, 61, 0, 0.04);
-    border: 1px solid rgba(255, 61, 0, 0.3);
-    border-radius: 14px;
-    padding: 18px 20px;
+/* -----------------------------------------
+   SECURITY THREAT ALERTS (OVERVIEW & DEDICATED)
+   ----------------------------------------- */
+
+/* Overview Scannable Threat Cards (Top 3) */
+.overview-threats-container {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    animation: pulseGlowRed 2s infinite alternate, slideIn 0.3s ease;
+    gap: 10px;
 }
 
-.flag-header {
+.overview-threat-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-glass);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.overview-threat-card:hover {
+    background: rgba(255, 255, 255, 0.04);
+    transform: translateY(-1px);
+}
+
+.overview-threat-card.threat-card-velocity {
+    border-left: 4px solid #ff9100;
+}
+
+.overview-threat-card.threat-card-collusion {
+    border-left: 4px solid #ff1744;
+}
+
+.overview-threat-card.threat-card-intent {
+    border-left: 4px solid #00e5ff;
+}
+
+/* Dedicated Security Alerts 3-Section Stack */
+.threat-sections-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+}
+
+.threat-category-panel {
+    background: var(--bg-glass);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-card);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.threat-category-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--border-glass);
+    background: rgba(255, 255, 255, 0.02);
 }
 
-.flag-title {
-    font-family: var(--font-heading);
+.threat-category-header h3 {
+    font-size: 1.12rem;
     font-weight: 700;
-    font-size: 1.05rem;
+    font-family: var(--font-heading);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 3px;
+}
+
+/* Dedicated Security Alerts Feed Container */
+.flags-rows-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 6px 0;
+}
+
+/* Full Dedicated Security Alert Cards with Expandable Drawer */
+.threat-alert-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-glass);
+    border-radius: 14px;
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: all 0.2s ease;
+    animation: slideIn 0.25s ease;
+}
+
+.threat-alert-card:hover {
+    background: rgba(255, 255, 255, 0.035);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.threat-alert-card.threat-card-velocity {
+    border-left: 4px solid #ff9100;
+}
+
+.threat-alert-card.threat-card-collusion {
+    border-left: 4px solid #ff1744;
+}
+
+.threat-alert-card.threat-card-intent {
+    border-left: 4px solid #00e5ff;
+}
+
+.threat-card-main {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.threat-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+}
+
+.threat-badge-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex-grow: 1;
+}
+
+.threat-badge-group .badge {
+    flex-shrink: 0;
+    font-size: 0.78rem;
+    padding: 3px 10px;
+}
+
+.threat-summary-text {
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.threat-action-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.threat-time {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.btn-toggle-details {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-glass);
+    color: var(--text-secondary);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.btn-toggle-details:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.threat-details-drawer {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    animation: fadeIn 0.2s ease;
+}
+
+.threat-alert-card.expanded .threat-details-drawer {
+    display: flex;
+}
+
+.threat-detail-text {
+    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.22);
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.threat-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.tx-chip {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-glass);
+    color: #38bdf8;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.8rem;
+    margin: 2px 3px 2px 0;
+}
+
+.neg-purpose-box {
     display: flex;
     align-items: center;
     gap: 8px;
-}
-
-.flag-desc {
-    font-size: 0.92rem;
-    line-height: 1.5;
-    word-break: break-word;
-}
-
-.flag-tx-links {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    background: rgba(0, 0, 0, 0.28);
-    padding: 10px 14px;
+    font-size: 0.88rem;
+    color: var(--text-primary);
+    background: rgba(0, 229, 255, 0.04);
+    border: 1px solid rgba(0, 229, 255, 0.2);
+    padding: 8px 12px;
     border-radius: 8px;
-    line-height: 1.45;
-    word-break: break-word;
+}
+
+.neg-purpose-box em {
+    color: #e0f2fe;
+    font-style: normal;
 }
 
 /* Negotiation Cards */
@@ -939,11 +1230,25 @@ body {
     flex-direction: column;
     gap: 12px;
     animation: slideIn 0.3s ease;
+    transition: all 0.25s ease;
 }
 
 .neg-card:hover {
-    border-color: rgba(255, 255, 255, 0.18);
-    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.035);
+    transform: translateY(-2px);
+}
+
+.neg-card.countered {
+    border-color: rgba(168, 85, 247, 0.35);
+    background: rgba(168, 85, 247, 0.03);
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.08);
+}
+
+.neg-card.countered:hover {
+    border-color: rgba(168, 85, 247, 0.55);
+    background: rgba(168, 85, 247, 0.055);
+    box-shadow: 0 0 25px rgba(168, 85, 247, 0.15);
 }
 
 .neg-header {
@@ -955,21 +1260,166 @@ body {
     font-weight: 500;
 }
 
-.neg-scope {
-    font-size: 0.98rem;
-    font-weight: 600;
-    line-height: 1.5;
+.neg-agent-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
+.neg-agent-name {
+    color: var(--text-primary);
+}
+
+.neg-arrow {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.neg-merchant-name {
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.neg-time {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.neg-scope-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-bottom: 2px;
+}
+
+.neg-category-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    color: var(--text-primary);
+}
+
+.neg-caps-display {
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.neg-cap-requested {
+    color: var(--text-secondary);
+}
+
+.neg-cap-requested del {
+    opacity: 0.7;
+}
+
+.neg-cap-divider {
+    color: var(--border-glass);
+}
+
+.neg-cap-countered strong {
+    color: #c084fc;
+    font-size: 1.05rem;
+}
+
+.neg-cap-approved strong {
+    color: var(--color-green);
+    font-size: 1.05rem;
+}
+
+/* Terms Breakdown Box */
+.neg-terms-box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.counter-term-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.counter-term-item strong {
+    color: var(--text-primary);
+}
+
+.term-muted {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+.term-highlight {
+    color: #c084fc;
+    font-weight: 500;
+}
+
+/* LLM Reasoning Box */
 .neg-reason {
     font-size: 0.9rem;
     line-height: 1.5;
-    background: rgba(0, 0, 0, 0.2);
-    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.32);
+    padding: 12px 14px;
     border-radius: 8px;
     border-left: 3px solid var(--color-blue);
     color: var(--text-secondary);
     word-break: break-word;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.neg-reason.countered-reason {
+    border-left-color: #c084fc;
+    background: rgba(168, 85, 247, 0.05);
+}
+
+.neg-reason.approved-reason {
+    border-left-color: var(--color-green);
+}
+
+.neg-reason-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.86rem;
+    color: var(--text-primary);
+}
+
+.neg-reason-body {
+    color: var(--text-secondary);
+    font-style: italic;
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
+.neg-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 10px;
+    margin-top: 2px;
 }
 
 /* Agent Registry Table */

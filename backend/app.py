@@ -1,6 +1,9 @@
 import os
 import json
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from dotenv import load_dotenv
+load_dotenv()
+
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -15,6 +18,15 @@ from .simulator import SafetyLayerSimulator
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Mandate Layer — Agentic Commerce Safety Layer API")
+
+# Prevent static caching during live testing and demo recordings
+@app.middleware("http")
+async def add_no_cache_header(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 # Allow CORS
 app.add_middleware(
@@ -80,12 +92,18 @@ class ResolveEscalationRequest(BaseModel):
 class ResetAgentRequest(BaseModel):
     target_tier: Optional[str] = "established"
 
+class SetSpeedRequest(BaseModel):
+    speed: float
+
 # --- REST Endpoints ---
 
 @app.get("/api/status")
 def get_status():
     return {
         "simulator_running": simulator.running,
+        "speed": simulator.speed,
+        "base_interval": simulator.base_interval,
+        "current_interval": round(simulator.base_interval / max(0.05, simulator.speed), 2),
         "merchant_id": simulator.merchant_id,
         "active_connections": len(manager.active_connections)
     }
@@ -116,7 +134,19 @@ async def toggle_simulator():
         await simulator.stop()
     else:
         await simulator.start()
-    return {"simulator_running": simulator.running}
+    return {"simulator_running": simulator.running, "speed": simulator.speed}
+
+@app.post("/api/simulator/speed")
+async def set_simulator_speed(payload: SetSpeedRequest):
+    if payload.speed <= 0:
+        raise HTTPException(status_code=400, detail="Speed must be greater than 0")
+    simulator.speed = payload.speed
+    current_interval = round(simulator.base_interval / max(0.05, simulator.speed), 2)
+    return {
+        "simulator_running": simulator.running,
+        "speed": simulator.speed,
+        "current_interval": current_interval
+    }
 
 @app.post("/api/escalation/{tx_id}/resolve")
 @app.post("/api/escalations/{tx_id}/resolve")

@@ -47,6 +47,7 @@ class Mandate(Base):
     valid_from = Column(DateTime, nullable=False)
     valid_until = Column(DateTime, nullable=False)
     status = Column(String, default="active")  # "active", "expired", "revoked"
+    stated_purpose = Column(String, nullable=True)  # Plain-language description of mandate scope
     negotiation_log = Column(Text, nullable=True)  # JSON string of negotiation steps
 
     # Relationships
@@ -66,6 +67,7 @@ class Mandate(Base):
             "merchant_id": self.merchant_id,
             "category": self.category,
             "amount_cap": self.amount_cap,
+            "stated_purpose": self.stated_purpose,
             "valid_from": format_utc_iso(self.valid_from),
             "valid_until": format_utc_iso(self.valid_until),
             "status": self.status,

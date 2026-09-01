@@ -14,7 +14,8 @@ Mandate Layer issues each AI agent a scoped mandate — a spend cap, a category,
 - **Policy Engine** — enforces spend caps, category scope, and mandate expiry on every transaction, in real time
 - **Real-time Transaction Ledger** — live feed of every approved, blocked, and escalated transaction with full audit reasoning
 - **Threat Detection** — flags velocity attacks (rapid spending by one agent) and collusion (multiple agents coordinating sub-threshold purchases to evade limits)
-- **Mandate Scope Negotiation** — agents request category/cap access; the system approves or restricts based on risk tier
+- **Mandate Scope Negotiation** — agents request category/cap access; the system approves qualifying requests or calls an LLM to formulate genuine counter-offers (reduced cap, shortened validity, provisional terms) for over-ask requests
+- **Semantic Intent Matching** — AI evaluation layer checking whether item details plausibly serve the mandate's stated purpose (e.g. flagging gaming consoles bought under office snack mandates)
 - **Agent Risk Registry** — per-agent risk tier (New / Established / Flagged), violation history, and a timeline of tier changes
 - **Human-in-the-Loop Review Queue** — borderline transactions escalate for manual approval rather than auto-deciding
 

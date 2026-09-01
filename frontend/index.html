@@ -11,7 +11,7 @@
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Styling -->
-    <link rel="stylesheet" href="style.css?v=1.1.3">
+    <link rel="stylesheet" href="style.css?v=2.2.0">
 </head>
 <body>
     <div class="glass-bg"></div>
@@ -66,10 +66,22 @@
                     <span id="connection-text">Connecting...</span>
                 </div>
 
-                <!-- Pause/Resume Simulation Button -->
-                <button id="toggle-simulator-btn" class="control-btn shadow-neon">
-                    <i class="fa-solid fa-pause"></i> <span>Pause Simulation</span>
-                </button>
+                <!-- Simulation Controls Group (Pause + Speed) -->
+                <div class="sim-controls-group">
+                    <button id="toggle-simulator-btn" class="control-btn shadow-neon">
+                        <i class="fa-solid fa-pause"></i> <span>Pause</span>
+                    </button>
+
+                    <div class="speed-control-box" title="Adjust transaction generation speed for demo & recording">
+                        <i class="fa-solid fa-gauge-simple-high cyan-text"></i>
+                        <span class="speed-label">Speed:</span>
+                        <select id="sim-speed-select" class="speed-select" onchange="changeSimulatorSpeed(this.value)">
+                            <option value="1.0" selected>1x (Normal)</option>
+                            <option value="0.5">0.5x (Slower)</option>
+                            <option value="0.25">0.25x (Demo Pace)</option>
+                        </select>
+                    </div>
+                </div>
             </div>
         </header>
 
@@ -78,6 +90,11 @@
             
             <!-- ================= VIEW 1: OVERVIEW ================= -->
             <section id="view-overview" class="view-section active">
+                <div class="main-feed-title-block overview-title-block" style="margin-bottom: 20px;">
+                    <h2><i class="fa-solid fa-chart-pie blue-text"></i> System Overview</h2>
+                    <span class="feed-subtitle">Real-time safety layer monitoring, policy enforcement, and autonomous risk protection for AI agent purchases</span>
+                </div>
+
                 <!-- KPI Summary Cards Grid -->
                 <div class="overview-kpi-grid">
                     <div class="kpi-card card-approved">
@@ -140,15 +157,15 @@
                         <div class="panel-header">
                             <div class="panel-header-title">
                                 <h2><i class="fa-solid fa-shield-halved red-text"></i> Recent Security Threat Alerts</h2>
-                                <span class="badge badge-red">Active Sliding Window</span>
+                                <span class="badge badge-red">Live Threat Monitor</span>
                             </div>
                             <button class="view-all-btn" onclick="switchView('view-threats')">
                                 View All Security Alerts <i class="fa-solid fa-arrow-right"></i>
                             </button>
                         </div>
                         <div class="panel-body">
-                            <div id="overview-threats-list" class="flags-container">
-                                <!-- Top 2-3 threat cards rendered dynamically -->
+                            <div id="overview-threats-list" class="overview-threats-container">
+                                <!-- Top 3 scannable summary threat cards rendered dynamically -->
                             </div>
                         </div>
                     </div>
@@ -191,7 +208,7 @@
                     <div class="panel-header ledger-header">
                         <div class="main-feed-title-block">
                             <h2><i class="fa-solid fa-receipt green-text"></i> Real-time Transaction Ledger</h2>
-                            <span class="feed-subtitle">Explainable, Bounded & Gated Event Evaluation</span>
+                            <span class="feed-subtitle">Every transaction your AI agents attempted, and why each was allowed or stopped.</span>
                         </div>
                         
                         <!-- Ledger Filters -->
@@ -233,19 +250,62 @@
 
             <!-- ================= VIEW 3: SECURITY ALERTS ================= -->
             <section id="view-threats" class="view-section">
-                <div class="glass-panel threats-full-panel neon-border-red">
-                    <div class="panel-header">
-                        <div class="main-feed-title-block">
-                            <h2><i class="fa-solid fa-shield-halved red-text"></i> Security Threat Alerts</h2>
-                            <span class="feed-subtitle">Sliding window velocity spikes and cross-agent collusion attack detections</span>
+                <div class="main-feed-title-block threats-main-header" style="margin-bottom: 24px;">
+                    <h2><i class="fa-solid fa-shield-halved red-text"></i> Security Threat Alerts</h2>
+                    <span class="feed-subtitle">Real-time detection of rapid spending spikes, multi-agent collusion, and mandate intent mismatches</span>
+                </div>
+
+                <!-- Three Stacked Vertical Sections -->
+                <div class="threat-sections-stack">
+                    
+                    <!-- Section 1: Spending Too Fast -->
+                    <div class="glass-panel threat-category-panel">
+                        <div class="panel-header threat-category-header">
+                            <div class="main-feed-title-block">
+                                <h3><i class="fa-solid fa-gauge-high orange-text"></i> Spending Too Fast</h3>
+                                <span class="feed-subtitle">An agent making many purchases very quickly can be a sign of a malfunction or attack.</span>
+                            </div>
+                            <span id="threat-count-velocity" class="badge badge-orange">0 Alerts</span>
                         </div>
-                        <span id="flag-count" class="badge badge-red">0 Alerts</span>
-                    </div>
-                    <div class="panel-body threats-body">
-                        <div id="flags-list" class="flags-grid-container">
-                            <!-- Full detail security alert cards -->
+                        <div class="panel-body">
+                            <div id="threats-velocity-list" class="flags-rows-container">
+                                <!-- Velocity alerts -->
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Section 2: Agents Working Together -->
+                    <div class="glass-panel threat-category-panel">
+                        <div class="panel-header threat-category-header">
+                            <div class="main-feed-title-block">
+                                <h3><i class="fa-solid fa-network-wired red-text"></i> Agents Working Together</h3>
+                                <span class="feed-subtitle">Multiple agents making small purchases at the same time may be splitting a large purchase to sneak past spending limits.</span>
+                            </div>
+                            <span id="threat-count-collusion" class="badge badge-red">0 Alerts</span>
+                        </div>
+                        <div class="panel-body">
+                            <div id="threats-collusion-list" class="flags-rows-container">
+                                <!-- Collusion alerts -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Wrong Purchases -->
+                    <div class="glass-panel threat-category-panel">
+                        <div class="panel-header threat-category-header">
+                            <div class="main-feed-title-block">
+                                <h3><i class="fa-solid fa-bullseye cyan-text"></i> Wrong Purchases</h3>
+                                <span class="feed-subtitle">An agent buying something that doesn't match what it was supposed to buy for, even if it's technically within its allowed budget and category.</span>
+                            </div>
+                            <span id="threat-count-intent" class="badge badge-cyan">0 Alerts</span>
+                        </div>
+                        <div class="panel-body">
+                            <div id="threats-intent-list" class="flags-rows-container">
+                                <!-- Intent Mismatch alerts -->
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </section>
 
@@ -255,7 +315,7 @@
                     <div class="panel-header">
                         <div class="main-feed-title-block">
                             <h2><i class="fa-solid fa-handshake blue-text"></i> Mandate Scope Negotiations</h2>
-                            <span class="feed-subtitle">Rule-based mandate scoping, counter-offers, and merchant policy justifications</span>
+                            <span class="feed-subtitle">When an agent asks for more spending power than it should have, here's how the system responds instead of a flat no.</span>
                         </div>
                         <span id="negotiation-count" class="badge badge-blue">0 Mandates</span>
                     </div>
@@ -273,7 +333,7 @@
                     <div class="panel-header">
                         <div class="main-feed-title-block">
                             <h2><i class="fa-solid fa-robot blue-text"></i> Buyer Agent Identities Registry</h2>
-                            <span class="feed-subtitle">Autonomous agent directory, risk tiers, violation records, and transition history</span>
+                            <span class="feed-subtitle">A trust score for each AI agent, based on its behavior over time.</span>
                         </div>
                         <span id="agent-count" class="badge badge-gray">0 Agents</span>
                     </div>
@@ -304,7 +364,7 @@
                     <div class="panel-header">
                         <div class="main-feed-title-block">
                             <h2><i class="fa-solid fa-triangle-exclamation yellow-text"></i> Pending Reviews (Human-in-the-Loop)</h2>
-                            <span class="feed-subtitle">Transactions escalated due to high cap consumption or anomalous risk triggers</span>
+                            <span class="feed-subtitle">Transactions requiring human approval due to high spend or unusual patterns.</span>
                         </div>
                         <span id="escalation-count" class="badge badge-yellow">0 Pending</span>
                     </div>
@@ -335,6 +395,6 @@
     </div>
 
     <!-- Scripts -->
-    <script src="app.js?v=1.1.3"></script>
+    <script src="app.js?v=2.2.0"></script>
 </body>
 </html>

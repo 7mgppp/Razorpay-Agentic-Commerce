@@ -9,9 +9,13 @@ let state = {
     flags: [],
     agents: [],
     simulatorRunning: true,
+    simulatorSpeed: 1.0,
     activeView: "view-overview",
     ledgerFilter: "all",
-    expandedTxIds: new Set()
+    threatFilter: "all",
+    expandedTxIds: new Set(),
+    expandedLedgerRows: new Set(),
+    expandedThreatIds: new Set()
 };
 
 // WebSocket variable
@@ -53,29 +57,29 @@ function switchView(viewId) {
         }
     });
 
-    // Update URL hash without scroll jump
+    // Update URL hash without jumping
     const hashMapping = {
-        "view-overview": "overview",
-        "view-ledger": "ledger",
-        "view-threats": "threats",
-        "view-negotiations": "negotiations",
-        "view-agents": "agents",
-        "view-reviews": "reviews"
+        "view-overview": "#overview",
+        "view-ledger": "#ledger",
+        "view-threats": "#security-threats",
+        "view-negotiations": "#negotiations",
+        "view-agents": "#agents",
+        "view-reviews": "#reviews"
     };
-    if (hashMapping[viewId]) {
-        history.replaceState(null, "", `#${hashMapping[viewId]}`);
+    if (hashMapping[viewId] && window.location.hash !== hashMapping[viewId]) {
+        history.replaceState(null, null, hashMapping[viewId]);
     }
 }
 
 function handleHashNavigation() {
-    const hash = window.location.hash.replace("#", "");
+    const hash = window.location.hash;
     const viewMapping = {
-        "overview": "view-overview",
-        "ledger": "view-ledger",
-        "threats": "view-threats",
-        "negotiations": "view-negotiations",
-        "agents": "view-agents",
-        "reviews": "view-reviews"
+        "#overview": "view-overview",
+        "#ledger": "view-ledger",
+        "#security-threats": "view-threats",
+        "#negotiations": "view-negotiations",
+        "#agents": "view-agents",
+        "#reviews": "view-reviews"
     };
     if (viewMapping[hash]) {
         switchView(viewMapping[hash]);
@@ -90,7 +94,10 @@ async function fetchInitialData() {
         if (statusRes.ok) {
             const status = await statusRes.json();
             state.simulatorRunning = status.simulator_running;
+            state.simulatorSpeed = status.speed || 1.0;
             updateSimulatorButtonUI();
+            const speedSelect = document.getElementById("sim-speed-select");
+            if (speedSelect) speedSelect.value = state.simulatorSpeed.toString();
         }
 
         // Fetch Transactions
@@ -248,6 +255,15 @@ function updateNavBadges() {
 
     const pendingEscalations = state.transactions.filter(t => t.decision === "escalated");
     if (escBadge) escBadge.textContent = pendingEscalations.length;
+
+    // Threat category section count badges
+    const velCountBadge = document.getElementById("threat-count-velocity");
+    const colCountBadge = document.getElementById("threat-count-collusion");
+    const intCountBadge = document.getElementById("threat-count-intent");
+
+    if (velCountBadge) velCountBadge.textContent = `${state.flags.filter(f => f.type === "velocity").length} Alerts`;
+    if (colCountBadge) colCountBadge.textContent = `${state.flags.filter(f => f.type === "collusion").length} Alerts`;
+    if (intCountBadge) intCountBadge.textContent = `${state.flags.filter(f => f.type === "intent_mismatch").length} Alerts`;
 }
 
 // 5. Setup Event Listeners
@@ -282,6 +298,24 @@ function updateSimulatorButtonUI() {
     }
 }
 
+async function changeSimulatorSpeed(speedValue) {
+    const speed = parseFloat(speedValue);
+    try {
+        const res = await fetch(`${API_BASE}/api/simulator/speed`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ speed: speed })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            state.simulatorSpeed = data.speed;
+            console.log(`Simulator speed set to ${data.speed}x (Interval: ${data.current_interval}s)`);
+        }
+    } catch (err) {
+        console.error("Error changing simulator speed:", err);
+    }
+}
+
 // 6. Render Utilities (Timezone-Aware UTC to Local Time Conversion)
 function parseUtcDate(dateStr) {
     if (!dateStr) return null;
@@ -305,7 +339,81 @@ function formatDateTime(dateStr) {
     return date.toLocaleString();
 }
 
-// Render Overview View (KPIs & Top 2-3 Alerts)
+function formatAlertSummary(flag) {
+    const detail = flag.detail || "";
+    const ftype = flag.type;
+    const agentId = flag.agent_id || "agent";
+    const txIds = flag.related_transaction_ids || [];
+
+    if (ftype === "velocity") {
+        const amtMatch = detail.match(/₹([\d,\.]+)/);
+        const amt = amtMatch ? amtMatch[1] : "0.00";
+        const countMatch = detail.match(/(\d+)\s+transactions/);
+        const n = countMatch ? countMatch[1] : (txIds.length || 4);
+        return `${agentId} made ${n} purchases in 30s — ₹${amt} (exceeds 4+ purchase threshold)`;
+
+    } else if (ftype === "collusion") {
+        const countMatch = detail.match(/(\d+)\s+distinct agents/);
+        const n = countMatch ? countMatch[1] : "3";
+        const merchMatch = detail.match(/at merchant '([^']+)'/);
+        let merch = merchMatch ? merchMatch[1] : "Razorpay Shop";
+        if (merch.includes("merchant_")) merch = merch.replace("merchant_", "").replace(/_/g, " ");
+        const amtMatch = detail.match(/totaling\s+₹([\d,\.]+)/) || detail.match(/₹([\d,\.]+)/);
+        const amt = amtMatch ? amtMatch[1] : "24,000.00";
+        return `${n} agents coordinated at ${merch} to stay under ₹12,000 threshold — ₹${amt} total`;
+
+    } else if (ftype === "intent_mismatch") {
+        const purpMatch = detail.match(/Mandate scoped for:\s*([^.]+)\./);
+        let purp = purpMatch ? purpMatch[1].trim() : "authorized scope";
+        if (purp.includes(":")) {
+            purp = purp.split(":")[0].trim();
+        } else if (purp.split(" ").length > 5) {
+            purp = purp.split(" ").slice(0, 4).join(" ");
+        }
+
+        const itemMatch = detail.match(/Actual charge:\s*([^(]+)\s*\((₹[\d,\.]+)\)/);
+        let item = "unauthorized item";
+        let amt = "₹0.00";
+        if (itemMatch) {
+            item = itemMatch[1].trim();
+            amt = itemMatch[2].trim();
+        }
+        return `${agentId}: expected ${purp}, got ${item} (${amt})`;
+    }
+
+    return detail;
+}
+
+function setThreatFilter(filter) {
+    state.threatFilter = filter;
+    
+    const pills = document.querySelectorAll("#threat-filter-group .filter-pill");
+    pills.forEach(pill => {
+        if (
+            (filter === "all" && pill.textContent.trim().startsWith("All")) ||
+            (filter === "velocity" && pill.classList.contains("pill-velocity")) ||
+            (filter === "collusion" && pill.classList.contains("pill-collusion")) ||
+            (filter === "intent_mismatch" && pill.classList.contains("pill-intent"))
+        ) {
+            pill.classList.add("active");
+        } else {
+            pill.classList.remove("active");
+        }
+    });
+    
+    renderFlags();
+}
+
+function toggleThreatExpand(flagId) {
+    if (state.expandedThreatIds.has(flagId)) {
+        state.expandedThreatIds.delete(flagId);
+    } else {
+        state.expandedThreatIds.add(flagId);
+    }
+    renderFlags();
+}
+
+// Render Overview View (KPIs & Top 3 Scannable Alerts)
 function renderOverview() {
     const approvedTxs = state.transactions.filter(t => t.decision === "approved");
     const blockedTxs = state.transactions.filter(t => t.decision === "blocked");
@@ -314,7 +422,6 @@ function renderOverview() {
 
     const totalApprovedSum = approvedTxs.reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    // Update KPI Card numbers
     const kpiApprovedCount = document.getElementById("kpi-approved-count");
     const kpiApprovedSum = document.getElementById("kpi-approved-sum");
     const kpiBlockedCount = document.getElementById("kpi-blocked-count");
@@ -331,31 +438,53 @@ function renderOverview() {
     if (kpiFlaggedAgents) kpiFlaggedAgents.textContent = flaggedAgents.length;
     if (kpiTotalAgents) kpiTotalAgents.textContent = `of ${state.agents.length} Identified`;
 
-    // Render Recent Threats (Top 2-3 only)
+    // Render Recent Threats Preview (Single most recent alert from each of the 3 categories)
     const threatsList = document.getElementById("overview-threats-list");
     if (threatsList) {
-        const recentFlags = state.flags.slice(0, 3);
-        if (recentFlags.length === 0) {
+        const latestVelocity = state.flags.find(f => f.type === "velocity");
+        const latestCollusion = state.flags.find(f => f.type === "collusion");
+        const latestIntent = state.flags.find(f => f.type === "intent_mismatch");
+
+        const sampleFlags = [latestVelocity, latestCollusion, latestIntent].filter(Boolean);
+
+        if (sampleFlags.length === 0) {
             threatsList.innerHTML = `
                 <div class="empty-state">
                     <i class="fa-solid fa-shield-virus green-text empty-icon"></i>
-                    <p>System secure. No anomalous patterns flagged in sliding window.</p>
+                    <p>System secure. No suspicious activity or threat patterns detected.</p>
                 </div>`;
         } else {
-            threatsList.innerHTML = recentFlags.map(flag => {
+            threatsList.innerHTML = sampleFlags.map(flag => {
                 const time = formatTime(flag.timestamp);
-                const icon = flag.type === "velocity" ? "fa-gauge-high" : "fa-network-wired";
+                const summary = formatAlertSummary(flag);
+                const isIntent = flag.type === "intent_mismatch";
+                const isVelocity = flag.type === "velocity";
+
+                let cardTypeClass = "threat-card-collusion";
+                let badgeClass = "badge-red";
+                let badgeText = "COLLUSION — Agents working together?";
+                let icon = "fa-network-wired";
+
+                if (isVelocity) {
+                    cardTypeClass = "threat-card-velocity";
+                    badgeClass = "badge-orange";
+                    badgeText = "VELOCITY — Spending too fast?";
+                    icon = "fa-gauge-high";
+                } else if (isIntent) {
+                    cardTypeClass = "threat-card-intent";
+                    badgeClass = "badge-cyan";
+                    badgeText = "INTENT MISMATCH — Bought the wrong thing?";
+                    icon = "fa-bullseye";
+                }
+
                 return `
-                    <div class="flag-card">
-                        <div class="flag-header">
-                            <span class="flag-title red-text">
-                                <i class="fa-solid ${icon}"></i> ${flag.type.toUpperCase()} THREAT ALERT
-                            </span>
-                            <span style="font-size: 0.8rem; color: var(--text-secondary);">${time}</span>
-                        </div>
-                        <div class="flag-desc">${flag.detail}</div>
-                        <div class="flag-tx-links">
-                            <strong>Linked TX IDs:</strong> ${flag.related_transaction_ids.join(", ")}
+                    <div class="overview-threat-card ${cardTypeClass}">
+                        <div class="threat-summary-row">
+                            <div class="threat-badge-group">
+                                <span class="badge ${badgeClass}"><i class="fa-solid ${icon}"></i> ${badgeText}</span>
+                                <span class="threat-summary-text">${summary}</span>
+                            </div>
+                            <span class="threat-time">${time}</span>
                         </div>
                     </div>
                 `;
@@ -369,9 +498,14 @@ function setLedgerFilter(filter) {
     state.ledgerFilter = filter;
     
     // Update filter pill active classes
-    const pills = document.querySelectorAll(".filter-pill");
+    const pills = document.querySelectorAll("#ledger-filter-group .filter-pill");
     pills.forEach(pill => {
-        if (pill.getAttribute("onclick") === `setLedgerFilter('${filter}')`) {
+        if (
+            (filter === "all" && pill.textContent.trim().startsWith("All")) ||
+            (filter === "approved" && pill.classList.contains("pill-approved")) ||
+            (filter === "blocked" && pill.classList.contains("pill-blocked")) ||
+            (filter === "escalated" && pill.classList.contains("pill-escalated"))
+        ) {
             pill.classList.add("active");
         } else {
             pill.classList.remove("active");
@@ -394,21 +528,21 @@ function renderTransactions() {
     const feed = document.getElementById("transactions-feed");
     if (!feed) return;
 
-    const approvedCount = state.transactions.filter(t => t.decision === "approved").length;
-    const blockedCount = state.transactions.filter(t => t.decision === "blocked").length;
-    const escalatedCount = state.transactions.filter(t => t.decision === "escalated").length;
+    // Update filter counts
+    const allCount = document.getElementById("filter-count-all");
+    const appCount = document.getElementById("filter-count-approved");
+    const blkCount = document.getElementById("filter-count-blocked");
+    const escCount = document.getElementById("filter-count-escalated");
 
-    const countAllEl = document.getElementById("filter-count-all");
-    const countAppEl = document.getElementById("filter-count-approved");
-    const countBlkEl = document.getElementById("filter-count-blocked");
-    const countEscEl = document.getElementById("filter-count-escalated");
+    const approvedTxs = state.transactions.filter(t => t.decision === "approved");
+    const blockedTxs = state.transactions.filter(t => t.decision === "blocked");
+    const escalatedTxs = state.transactions.filter(t => t.decision === "escalated");
 
-    if (countAllEl) countAllEl.textContent = state.transactions.length;
-    if (countAppEl) countAppEl.textContent = approvedCount;
-    if (countBlkEl) countBlkEl.textContent = blockedCount;
-    if (countEscEl) countEscEl.textContent = escalatedCount;
+    if (allCount) allCount.textContent = state.transactions.length;
+    if (appCount) appCount.textContent = approvedTxs.length;
+    if (blkCount) blkCount.textContent = blockedTxs.length;
+    if (escCount) escCount.textContent = escalatedTxs.length;
 
-    // Filter transactions
     let filteredTxs = state.transactions;
     if (state.ledgerFilter !== "all") {
         filteredTxs = state.transactions.filter(t => t.decision === state.ledgerFilter);
@@ -417,8 +551,8 @@ function renderTransactions() {
     if (filteredTxs.length === 0) {
         feed.innerHTML = `
             <div class="empty-state">
-                <i class="fa-solid fa-receipt empty-icon"></i>
-                <p>No transaction attempts matching filter '${state.ledgerFilter}'.</p>
+                <i class="fa-solid fa-folder-open empty-icon"></i>
+                <p>No transactions matching filter '${state.ledgerFilter}'.</p>
             </div>`;
         return;
     }
@@ -464,49 +598,122 @@ function renderTransactions() {
     }).join("");
 }
 
-// 8. Render Security Flags View (Full Page)
-function renderFlags() {
-    const list = document.getElementById("flags-list");
-    const countBadge = document.getElementById("flag-count");
-    
-    if (countBadge) countBadge.textContent = `${state.flags.length} Alerts`;
+// Helper: Render an individual scannable threat card with drawer
+function renderThreatCardHtml(flag) {
+    const isExpanded = state.expandedThreatIds.has(flag.id);
+    const time = formatTime(flag.timestamp);
+    const summary = formatAlertSummary(flag);
+    const isIntent = flag.type === "intent_mismatch";
+    const isVelocity = flag.type === "velocity";
 
-    if (!list) return;
+    let cardTypeClass = "threat-card-collusion";
+    let badgeClass = "badge-red";
+    let badgeText = "COLLUSION — Agents working together?";
+    let icon = "fa-network-wired";
 
-    if (state.flags.length === 0) {
-        list.innerHTML = `
-            <div class="empty-state">
-                <i class="fa-solid fa-shield-virus empty-icon"></i>
-                <p>System secure. No anomalous patterns flagged.</p>
-            </div>`;
-        return;
+    if (isVelocity) {
+        cardTypeClass = "threat-card-velocity";
+        badgeClass = "badge-orange";
+        badgeText = "VELOCITY — Spending too fast?";
+        icon = "fa-gauge-high";
+    } else if (isIntent) {
+        cardTypeClass = "threat-card-intent";
+        badgeClass = "badge-cyan";
+        badgeText = "INTENT MISMATCH — Bought the wrong thing?";
+        icon = "fa-bullseye";
     }
 
-    list.innerHTML = state.flags.map(flag => {
-        const time = formatTime(flag.timestamp);
-        const icon = flag.type === "velocity" ? "fa-gauge-high" : "fa-network-wired";
-        
-        return `
-            <div class="flag-card">
-                <div class="flag-header">
-                    <span class="flag-title red-text">
-                        <i class="fa-solid ${icon}"></i> ${flag.type.toUpperCase()} THREAT ALERT
-                    </span>
-                    <span style="font-size: 0.85rem; color: var(--text-secondary);">${time}</span>
-                </div>
-                <div class="flag-desc">
-                    ${flag.detail}
-                </div>
-                <div class="flag-tx-links">
-                    <strong>Linked Transaction IDs:</strong> ${flag.related_transaction_ids.join(", ")}
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--text-secondary); border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
-                    <span><strong>Agent ID:</strong> ${flag.agent_id || 'Coordinated Syndicate'}</span>
-                    <span class="badge badge-red">FLAGGED</span>
+    const txLinks = (flag.related_transaction_ids || []).map(txid => `<span class="tx-chip">${txid}</span>`).join(" ");
+
+    return `
+        <div class="threat-alert-card ${cardTypeClass} ${isExpanded ? 'expanded' : ''}" id="threat-card-${flag.id}">
+            <div class="threat-card-main">
+                <div class="threat-summary-row">
+                    <div class="threat-badge-group">
+                        <span class="badge ${badgeClass}"><i class="fa-solid ${icon}"></i> ${badgeText}</span>
+                        <span class="threat-summary-text">${summary}</span>
+                    </div>
+                    <div class="threat-action-group">
+                        <span class="threat-time">${time}</span>
+                        <button class="btn-toggle-details" onclick="toggleThreatExpand('${flag.id}')">
+                            ${isExpanded ? 'Hide details <i class="fa-solid fa-chevron-up"></i>' : 'Show details <i class="fa-solid fa-chevron-down"></i>'}
+                        </button>
+                    </div>
                 </div>
             </div>
-        `;
-    }).join("");
+            <div class="threat-details-drawer">
+                <div class="threat-detail-text">
+                    <strong>Finding Details:</strong> ${flag.detail}
+                </div>
+                <div class="threat-meta-row">
+                    <div class="threat-tx-chips">
+                        <strong>Linked Transactions:</strong> ${txLinks || 'None'}
+                    </div>
+                    <div class="threat-agent-tag">
+                        <strong>Agent:</strong> <code>${flag.agent_id || 'Coordinated Syndicate'}</code>
+                    </div>
+                    <div class="threat-date-tag">
+                        <strong>Recorded:</strong> ${formatDateTime(flag.timestamp)}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 8. Render Security Flags View (3 Stacked Vertical Sections)
+function renderFlags() {
+    const velContainer = document.getElementById("threats-velocity-list");
+    const colContainer = document.getElementById("threats-collusion-list");
+    const intContainer = document.getElementById("threats-intent-list");
+
+    const velCountBadge = document.getElementById("threat-count-velocity");
+    const colCountBadge = document.getElementById("threat-count-collusion");
+    const intCountBadge = document.getElementById("threat-count-intent");
+
+    const velFlags = state.flags.filter(f => f.type === "velocity");
+    const colFlags = state.flags.filter(f => f.type === "collusion");
+    const intFlags = state.flags.filter(f => f.type === "intent_mismatch");
+
+    if (velCountBadge) velCountBadge.textContent = `${velFlags.length} Alerts`;
+    if (colCountBadge) colCountBadge.textContent = `${colFlags.length} Alerts`;
+    if (intCountBadge) intCountBadge.textContent = `${intFlags.length} Alerts`;
+
+    if (velContainer) {
+        if (velFlags.length === 0) {
+            velContainer.innerHTML = `
+                <div class="empty-state">
+                    <i class="fa-solid fa-shield-virus green-text empty-icon"></i>
+                    <p>No rapid spending alerts detected.</p>
+                </div>`;
+        } else {
+            velContainer.innerHTML = velFlags.map(renderThreatCardHtml).join("");
+        }
+    }
+
+    if (colContainer) {
+        if (colFlags.length === 0) {
+            colContainer.innerHTML = `
+                <div class="empty-state">
+                    <i class="fa-solid fa-shield-virus green-text empty-icon"></i>
+                    <p>No multi-agent collusion alerts detected.</p>
+                </div>`;
+        } else {
+            colContainer.innerHTML = colFlags.map(renderThreatCardHtml).join("");
+        }
+    }
+
+    if (intContainer) {
+        if (intFlags.length === 0) {
+            intContainer.innerHTML = `
+                <div class="empty-state">
+                    <i class="fa-solid fa-shield-virus green-text empty-icon"></i>
+                    <p>No wrong purchase (intent mismatch) alerts detected.</p>
+                </div>`;
+        } else {
+            intContainer.innerHTML = intFlags.map(renderThreatCardHtml).join("");
+        }
+    }
 }
 
 // 9. Render Mandates Negotiations View (Full Page)
@@ -533,26 +740,78 @@ function renderMandates() {
         const outcome = logs[1] || {};
         const timestamp = formatTime(mandate.valid_from);
         
-        const badgeClass = outcome.status === "countered" ? "badge-yellow" : "badge-green";
-        const badgeText = outcome.status === "countered" ? "COUNTERED" : "APPROVED";
+        const isCountered = outcome.status === "countered";
+        const badgeClass = isCountered ? "badge-countered" : "badge-green";
+        const badgeIcon = isCountered ? "fa-handshake-simple" : "fa-circle-check";
+        const badgeText = isCountered ? "COUNTERED" : "APPROVED";
+        const cardClass = isCountered ? "neg-card countered" : "neg-card approved";
+
+        const requestedCap = request.requested !== undefined ? request.requested : mandate.amount_cap;
+        const grantedCap = mandate.amount_cap;
+        const reqWindow = request.requested_validity_minutes || 60;
+        const grantedWindow = outcome.validity_minutes || reqWindow;
+        const condition = outcome.condition || "Standard policy clearance";
+        const llmReasoning = outcome.llm_reasoning || outcome.reason || "Evaluated against active merchant risk policies.";
+        const statedPurpose = mandate.stated_purpose || request.purpose || "General enterprise procurement";
 
         return `
-            <div class="neg-card">
+            <div class="${cardClass}">
                 <div class="neg-header">
-                    <span><strong>${mandate.agent_id}</strong> &rarr; Razorpay Merchant</span>
-                    <span>${timestamp}</span>
+                    <div class="neg-agent-info">
+                        <span class="neg-agent-name"><i class="fa-solid fa-robot"></i> <strong>${mandate.agent_id}</strong></span>
+                        <span class="neg-arrow">&rarr;</span>
+                        <span class="neg-merchant-name"><i class="fa-solid fa-shield-halved blue-text"></i> Mandate Layer</span>
+                    </div>
+                    <span class="neg-time">${timestamp}</span>
                 </div>
-                <div class="neg-scope">
-                    <strong>Category:</strong> ${mandate.category} <br/>
-                    Requested Cap: <del>₹${request.requested ? request.requested.toFixed(2) : '0.00'}</del> &bull; 
-                    Granted Cap: <strong>₹${mandate.amount_cap.toFixed(2)}</strong>
+
+                <!-- Stated Plain-Language Purpose -->
+                <div class="neg-purpose-box">
+                    <i class="fa-solid fa-bullseye cyan-text"></i>
+                    <span><strong>Stated Purpose:</strong> <em>"${statedPurpose}"</em></span>
                 </div>
-                <div class="neg-reason">
-                    ${outcome.reason || "Mandate negotiated successfully according to merchant policy."}
+
+                <div class="neg-scope-row">
+                    <div class="neg-category-pill">
+                        <i class="fa-solid fa-tag"></i> <span>${mandate.category ? mandate.category.replace('_', ' ') : 'General'}</span>
+                    </div>
+                    <div class="neg-caps-display">
+                        ${isCountered ? `
+                            <span class="neg-cap-requested">Requested: <del>₹${requestedCap.toFixed(2)}</del></span>
+                            <span class="neg-cap-divider">&bull;</span>
+                            <span class="neg-cap-countered">Counter-Cap: <strong>₹${grantedCap.toFixed(2)}</strong></span>
+                        ` : `
+                            <span class="neg-cap-approved">Granted Cap: <strong>₹${grantedCap.toFixed(2)}</strong></span>
+                        `}
+                    </div>
                 </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--text-secondary); border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
-                    <span><strong>Mandate ID:</strong> ${mandate.id}</span>
-                    <span class="badge ${badgeClass}">${badgeText}</span>
+
+                <!-- Terms Breakdown -->
+                <div class="neg-terms-box">
+                    <div class="counter-term-item">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <span><strong>Validity:</strong> ${grantedWindow} mins ${isCountered ? `<span class="term-muted">(Requested: ${reqWindow} mins)</span>` : ''}</span>
+                    </div>
+                    <div class="counter-term-item">
+                        <i class="fa-solid ${isCountered ? 'fa-scale-balanced purple-text' : 'fa-check-double green-text'}"></i>
+                        <span><strong>Provisional Terms:</strong> <span class="${isCountered ? 'term-highlight' : ''}">${condition}</span></span>
+                    </div>
+                </div>
+
+                <!-- LLM Reasoning Box -->
+                <div class="neg-reason ${isCountered ? 'countered-reason' : 'approved-reason'}">
+                    <div class="neg-reason-header">
+                        <i class="fa-solid ${isCountered ? 'fa-brain purple-text' : 'fa-circle-info green-text'}"></i>
+                        <strong>${isCountered ? 'LLM Counter-Proposal Rationale:' : 'Policy Evaluation:'}</strong>
+                    </div>
+                    <div class="neg-reason-body">
+                        ${llmReasoning}
+                    </div>
+                </div>
+
+                <div class="neg-footer">
+                    <span class="neg-mandate-id"><strong>Mandate ID:</strong> ${mandate.id}</span>
+                    <span class="badge ${badgeClass}"><i class="fa-solid ${badgeIcon}"></i> ${badgeText}</span>
                 </div>
             </div>
         `;
