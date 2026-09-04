@@ -489,6 +489,66 @@ function renderOverview() {
     if (kpiFlaggedAgents) kpiFlaggedAgents.textContent = flaggedAgents.length;
     if (kpiTotalAgents) kpiTotalAgents.textContent = `of ${state.agents.length} Identified`;
 
+    // -----------------------------------------------------------------
+    // Merchant Revenue Impact Calculations (Audited Aggregations)
+    // -----------------------------------------------------------------
+    let totalNegotiationRequests = 0;
+    let totalOverCapRequests = 0;
+    let counteredWithCap = 0;
+    let rejectedOverCap = 0;
+
+    (state.mandates || []).forEach(m => {
+        const log = m.negotiation_log || [];
+        if (log.length >= 2) {
+            totalNegotiationRequests++;
+            const req = log[0] || {};
+            const out = log[1] || {};
+            const requested = req.requested || 0;
+            const policyLimit = req.policy_limit || 0;
+            const status = out.status;
+            const grantedCap = out.granted_cap !== undefined ? out.granted_cap : m.amount_cap;
+
+            // An over-cap request is any request where requested > policy_limit
+            if (requested > policyLimit) {
+                totalOverCapRequests++;
+                if (status === "countered" && grantedCap > 0) {
+                    counteredWithCap++;
+                } else if (status === "rejected" || status === "denied" || status === "blocked" || grantedCap === 0) {
+                    rejectedOverCap++;
+                }
+            }
+        }
+    });
+
+    const revenueEnabledEl = document.getElementById("impact-revenue-enabled");
+    const negotiatedCountEl = document.getElementById("impact-negotiated-count");
+    const negotiatedSubEl = document.getElementById("impact-negotiated-sub");
+    const rateWithoutEl = document.getElementById("impact-rate-without");
+    const rateWithEl = document.getElementById("impact-rate-with");
+    const rateSubEl = document.getElementById("impact-rate-sub");
+
+    const flatRuleRate = 0; // Flat accept/reject system automatically rejects 100% of over-cap requests
+    const negotiationRate = totalOverCapRequests > 0 ? Math.round((counteredWithCap / totalOverCapRequests) * 100) : 100;
+
+    if (revenueEnabledEl) {
+        revenueEnabledEl.textContent = `₹${totalApprovedSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    if (negotiatedCountEl) {
+        negotiatedCountEl.textContent = `${counteredWithCap} of ${totalOverCapRequests}`;
+    }
+    if (negotiatedSubEl) {
+        negotiatedSubEl.textContent = `${counteredWithCap} of ${totalOverCapRequests} over-cap requests turned into approved sales instead of denials.`;
+    }
+    if (rateWithoutEl) {
+        rateWithoutEl.textContent = `${flatRuleRate}%`;
+    }
+    if (rateWithEl) {
+        rateWithEl.textContent = `${negotiationRate}%`;
+    }
+    if (rateSubEl) {
+        rateSubEl.textContent = `${flatRuleRate}% → ${negotiationRate}% approval rate for over-cap requests, enabled by negotiation.`;
+    }
+
     // Render Recent Threats Preview (Single most recent alert from each of the 4 categories)
     const threatsList = document.getElementById("overview-threats-list");
     if (threatsList) {

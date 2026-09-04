@@ -11,7 +11,7 @@
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Styling -->
-    <link rel="stylesheet" href="style.css?v=2.5.0">
+    <link rel="stylesheet" href="style.css?v=2.6.0">
 </head>
 <body>
     <div class="glass-bg"></div>
@@ -150,6 +150,74 @@
                                 <span class="kpi-value red-text" id="kpi-flagged-agents-count">0</span>
                                 <span class="kpi-sub" id="kpi-total-agents-count">of 4 Identified</span>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Merchant Commerce Impact Panel (Revenue Enablement Focus) -->
+                <div class="glass-panel merchant-impact-panel neon-border-cyan">
+                    <div class="panel-header merchant-impact-header">
+                        <div class="main-feed-title-block">
+                            <h2><i class="fa-solid fa-arrow-trend-up cyan-text"></i> Merchant Commerce Impact</h2>
+                            <span class="feed-subtitle">How bounded, explainable trust converts potential dropped checkouts into authorized agent sales</span>
+                        </div>
+                        <span class="badge badge-cyan"><i class="fa-solid fa-bolt"></i> Commerce Enablement</span>
+                    </div>
+                    <div class="panel-body merchant-impact-body">
+                        <div class="merchant-impact-grid">
+                            
+                            <!-- Metric 1: Agent-Initiated Commerce Enabled -->
+                            <div class="impact-metric-card">
+                                <div class="impact-card-top">
+                                    <div class="impact-icon-circle cyan-glow">
+                                        <i class="fa-solid fa-indian-rupee-sign cyan-text"></i>
+                                    </div>
+                                    <span class="impact-metric-title">Agent-Initiated Commerce Enabled</span>
+                                </div>
+                                <div class="impact-val-box">
+                                    <span class="impact-large-val cyan-text" id="impact-revenue-enabled">₹0.00</span>
+                                    <span class="impact-subtext">Total simulated agent commerce enabled through the safety layer.</span>
+                                </div>
+                            </div>
+
+                            <!-- Metric 2: Transactions Enabled Through Negotiation -->
+                            <div class="impact-metric-card">
+                                <div class="impact-card-top">
+                                    <div class="impact-icon-circle blue-glow">
+                                        <i class="fa-solid fa-handshake-simple blue-text"></i>
+                                    </div>
+                                    <span class="impact-metric-title">Transactions Enabled via Negotiation</span>
+                                </div>
+                                <div class="impact-val-box">
+                                    <span class="impact-large-val blue-text" id="impact-negotiated-count">0 of 0</span>
+                                    <span class="impact-subtext" id="impact-negotiated-sub">0 of 0 over-cap requests turned into approved sales instead of denials.</span>
+                                </div>
+                            </div>
+
+                            <!-- Metric 3: Approval Rate With vs Without Negotiation -->
+                            <div class="impact-metric-card">
+                                <div class="impact-card-top">
+                                    <div class="impact-icon-circle green-glow">
+                                        <i class="fa-solid fa-chart-line green-text"></i>
+                                    </div>
+                                    <span class="impact-metric-title">Approval Rate: Flat Rule vs Negotiation</span>
+                                </div>
+                                <div class="impact-val-box">
+                                    <div class="impact-rate-comparison">
+                                        <span class="rate-before red-text" id="impact-rate-without">0%</span>
+                                        <span class="rate-arrow">&rarr;</span>
+                                        <span class="rate-after green-text" id="impact-rate-with">100%</span>
+                                    </div>
+                                    <span class="impact-subtext" id="impact-rate-sub">0% → 100% approval rate for over-cap requests, enabled by negotiation.</span>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- Metric 4: Framing Text Banner -->
+                        <div class="impact-framing-banner">
+                            <i class="fa-solid fa-shield-halved cyan-text"></i>
+                            <span>Without bounded, explainable trust, merchants can't safely enable AI agents to spend at all — this is what makes agent-initiated commerce possible in the first place.</span>
                         </div>
                     </div>
                 </div>
@@ -497,6 +565,6 @@
     </div>
 
     <!-- Scripts -->
-    <script src="app.js?v=2.5.0"></script>
+    <script src="app.js?v=2.6.0"></script>
 </body>
 </html>
