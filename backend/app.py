@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 from .database import get_db, Base, engine, SessionLocal
-from .models import AgentIdentity, Mandate, TransactionAttempt, Flag, MerchantPolicy, RiskTierHistory
+from .models import AgentIdentity, Mandate, TransactionAttempt, Flag, MerchantPolicy, RiskTierHistory, RedTeamAttempt
 from .simulator import SafetyLayerSimulator
 
 # Initialize SQLite tables
@@ -95,6 +95,9 @@ class ResetAgentRequest(BaseModel):
 class SetSpeedRequest(BaseModel):
     speed: float
 
+class TriggerRedTeamRequest(BaseModel):
+    technique: Optional[str] = None
+
 # --- REST Endpoints ---
 
 @app.get("/api/status")
@@ -127,6 +130,18 @@ def get_flags(db: Session = Depends(get_db)):
 def get_agents(db: Session = Depends(get_db)):
     agents = db.query(AgentIdentity).all()
     return [a.to_dict() for a in agents]
+
+@app.get("/api/redteam")
+def get_redteam_attempts(db: Session = Depends(get_db)):
+    attempts = db.query(RedTeamAttempt).order_by(RedTeamAttempt.timestamp.desc()).limit(50).all()
+    return [a.to_dict() for a in attempts]
+
+@app.post("/api/redteam/trigger")
+async def trigger_redteam_test(payload: TriggerRedTeamRequest = TriggerRedTeamRequest()):
+    attempt = await simulator.simulate_redteam_adversarial_event(custom_technique=payload.technique)
+    if not attempt:
+        raise HTTPException(status_code=500, detail="Failed to execute Red-Team adversarial test")
+    return attempt.to_dict()
 
 @app.post("/api/simulator/toggle")
 async def toggle_simulator():

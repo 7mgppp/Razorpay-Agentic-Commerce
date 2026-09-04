@@ -5,10 +5,11 @@ import uuid
 import json
 from sqlalchemy.orm import Session
 from .database import SessionLocal
-from .models import AgentIdentity, Mandate, TransactionAttempt, Flag, MerchantPolicy, RiskTierHistory
+from .models import AgentIdentity, Mandate, TransactionAttempt, Flag, MerchantPolicy, RiskTierHistory, RedTeamAttempt
 from .engines.negotiation import negotiate_mandate
 from .engines.enforcement import enforce_transaction
-from .engines.detection import detect_velocity, detect_collusion
+from .engines.detection import detect_velocity, detect_collusion, detect_cumulative_evasion
+from .engines.redteam import execute_redteam_test
 
 CATEGORY_PURPOSES = {
     "office_supplies": [
@@ -46,6 +47,7 @@ class SafetyLayerSimulator:
             {"id": "agent_travel_planner", "name": "Travel Booking Agent", "tier": "established"},
             {"id": "agent_office_runner", "name": "Office Restocking Agent", "tier": "new"},
             {"id": "agent_temp_guest", "name": "Guest Ad-hoc Buyer", "tier": "new"},
+            {"id": "agent_redteam", "name": "Adversarial Red-Team Agent", "tier": "new"},
         ]
         self.escalation_index = 0
         self.mismatch_index = 0
@@ -75,6 +77,9 @@ class SafetyLayerSimulator:
                 if counter % 30 == 0:
                     # 1. Trigger Collusion Attack Pattern (3 distinct agents, short window, high sum)
                     await self.simulate_collusion_pattern()
+                elif counter % 26 == 0:
+                    # 1b. Trigger Adversarial Red-Team Synthetic Probe (LLM-generated evasion attack)
+                    await self.simulate_redteam_adversarial_event()
                 elif counter % 22 == 0:
                     # 2. Trigger Velocity Attack Pattern (1 agent, rapid transactions)
                     await self.simulate_velocity_pattern()
@@ -869,3 +874,25 @@ class SafetyLayerSimulator:
                 await asyncio.sleep(0.4)
         finally:
             db.close()
+
+    async def simulate_redteam_adversarial_event(self, custom_technique: str = None):
+        """
+        Trigger an autonomous adversarial probe from 'agent_redteam'.
+        Generates an evasion strategy via LLM and executes against the unmodified defense stack.
+        """
+        db = SessionLocal()
+        try:
+            print("Simulator: Executing Adversarial Red-Team Probe on 'agent_redteam'...")
+            attempt = await execute_redteam_test(
+                db=db,
+                broadcast_callback=self.broadcast_callback,
+                custom_technique=custom_technique
+            )
+            print(f"Simulator: Red-Team Probe Complete -> Outcome: {attempt.outcome.upper()} (Detected by: {attempt.detected_by})")
+            return attempt
+        except Exception as e:
+            print(f"Error in simulate_redteam_adversarial_event: {e}")
+            return None
+        finally:
+            db.close()
+

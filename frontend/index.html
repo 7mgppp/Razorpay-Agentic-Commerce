@@ -11,7 +11,7 @@
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Styling -->
-    <link rel="stylesheet" href="style.css?v=2.3.0">
+    <link rel="stylesheet" href="style.css?v=2.5.0">
 </head>
 <body>
     <div class="glass-bg"></div>
@@ -48,6 +48,10 @@
                     <button class="nav-tab" data-view="view-agents" onclick="switchView('view-agents')">
                         <i class="fa-solid fa-robot"></i> <span>Agent Registry</span>
                         <span id="agent-nav-badge" class="badge badge-gray nav-count-badge">0</span>
+                    </button>
+                    <button class="nav-tab" data-view="view-redteam" onclick="switchView('view-redteam')">
+                        <i class="fa-solid fa-user-secret purple-text"></i> <span>Red Team</span>
+                        <span id="redteam-nav-badge" class="badge badge-purple nav-count-badge">0</span>
                     </button>
                 </nav>
             </div>
@@ -306,6 +310,22 @@
                         </div>
                     </div>
 
+                    <!-- Section 4: Slow Spending Evasion (Cumulative Volume) -->
+                    <div class="glass-panel threat-category-panel">
+                        <div class="panel-header threat-category-header">
+                            <div class="main-feed-title-block">
+                                <h3><i class="fa-solid fa-hourglass-half amber-text"></i> Slow Spending Evasion (Cumulative Volume)</h3>
+                                <span class="feed-subtitle">An agent or small group making spaced-out purchases over a 1-hour window to evade short-window velocity and collusion triggers while exceeding total limits.</span>
+                            </div>
+                            <span id="threat-count-cumulative" class="badge badge-amber">0 Alerts</span>
+                        </div>
+                        <div class="panel-body">
+                            <div id="threats-cumulative-list" class="flags-rows-container">
+                                <!-- Cumulative Threshold Evasion alerts -->
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </section>
 
@@ -375,6 +395,88 @@
                     </div>
                 </div>
             </section>
+
+            <!-- ================= VIEW 7: RED TEAM ADVERSARIAL TESTING ================= -->
+            <section id="view-redteam" class="view-section">
+                <div class="glass-panel redteam-full-panel neon-border-purple">
+                    <div class="panel-header redteam-panel-header">
+                        <div class="main-feed-title-block">
+                            <h2><i class="fa-solid fa-user-secret purple-text"></i> Adversarial Red-Team Monitor</h2>
+                            <span class="feed-subtitle">Autonomous attacker agent (<span class="code-pill">agent_redteam</span>) actively constructing evasion payloads to challenge Velocity, Collusion, and Semantic Intent defenses.</span>
+                        </div>
+                        <div class="redteam-header-controls">
+                            <div class="technique-select-box">
+                                <label for="redteam-technique-select"><i class="fa-solid fa-crosshairs purple-text"></i> Target Vector:</label>
+                                <select id="redteam-technique-select" class="redteam-select">
+                                    <option value="">Auto-Rotate All Vectors</option>
+                                    <option value="semantic_boundary_probe">Semantic Intent Boundary Probe</option>
+                                    <option value="velocity_threshold_skimming">Velocity Threshold Skimming</option>
+                                    <option value="split_collusion_sub_syndicate">2-Agent Collusion Sub-Syndicate</option>
+                                    <option value="category_cap_evasion">Category Cap Evasion</option>
+                                </select>
+                            </div>
+                            <button id="btn-trigger-redteam" class="btn-redteam-trigger shadow-neon-purple" onclick="triggerManualRedTeamTest()">
+                                <i class="fa-solid fa-play"></i> <span>Run Red Team Test</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Red Team KPI Grid -->
+                    <div class="redteam-kpi-grid">
+                        <div class="kpi-card card-rt-total">
+                            <div class="kpi-icon-wrapper purple-glow">
+                                <i class="fa-solid fa-bolt purple-text"></i>
+                            </div>
+                            <div class="kpi-info">
+                                <span class="kpi-label">Total Adversarial Probes</span>
+                                <div class="kpi-value-row">
+                                    <span class="kpi-value purple-text" id="kpi-rt-total">0</span>
+                                    <span class="kpi-sub" id="kpi-rt-live-tag">Live Synthetic</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card card-rt-caught">
+                            <div class="kpi-icon-wrapper green-glow">
+                                <i class="fa-solid fa-shield-check green-text"></i>
+                            </div>
+                            <div class="kpi-info">
+                                <span class="kpi-label">Attacks Intercepted (Caught)</span>
+                                <div class="kpi-value-row">
+                                    <span class="kpi-value green-text" id="kpi-rt-caught">0</span>
+                                    <span class="kpi-sub" id="kpi-rt-rate">100% Interception</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card card-rt-evaded">
+                            <div class="kpi-icon-wrapper red-glow">
+                                <i class="fa-solid fa-triangle-exclamation red-text"></i>
+                            </div>
+                            <div class="kpi-info">
+                                <span class="kpi-label">Detection Gaps (Evaded)</span>
+                                <div class="kpi-value-row">
+                                    <span class="kpi-value red-text" id="kpi-rt-evaded">0</span>
+                                    <span class="kpi-sub" id="kpi-rt-gap-sub">0 Gaps Flagged</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel-body redteam-body">
+                        <div class="redteam-feed-header">
+                            <div class="feed-header-left">
+                                <h3><i class="fa-solid fa-terminal purple-text"></i> Adversarial Attack Log & Interception Stream</h3>
+                                <span class="feed-sub-note">Synthetic test attacks evaluated in real-time against the unmodified safety pipeline.</span>
+                            </div>
+                            <span id="redteam-count-badge" class="badge badge-purple">0 Probes</span>
+                        </div>
+                        <div id="redteam-probes-list" class="redteam-probes-container">
+                            <!-- Rendered dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
 
@@ -395,6 +497,6 @@
     </div>
 
     <!-- Scripts -->
-    <script src="app.js?v=2.3.0"></script>
+    <script src="app.js?v=2.5.0"></script>
 </body>
 </html>

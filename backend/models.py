@@ -173,3 +173,44 @@ class RiskTierHistory(Base):
             "reason": self.reason
         }
 
+class RedTeamAttempt(Base):
+    __tablename__ = "red_team_attempts"
+
+    id = Column(String, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    agent_id = Column(String, default="agent_redteam")
+    target_technique = Column(String, nullable=False)
+    evasion_strategy = Column(Text, nullable=False)
+    mandate_purpose = Column(String, nullable=False)
+    category = Column(String, nullable=False)
+    merchant_name = Column(String, nullable=False)
+    amount = Column(Float, nullable=False)
+    item_description = Column(String, nullable=False)
+    outcome = Column(String, nullable=False)  # "caught", "evaded"
+    detected_by = Column(String, nullable=False)  # "intent_mismatch", "velocity", "collusion", "policy_cap", "timing", "escalation", "none_evaded"
+    defense_response = Column(Text, nullable=True)
+    source = Column(String, default="ai_llm")  # "ai_llm", "static_fallback"
+    is_synthetic = Column(Integer, default=1)
+    related_transaction_id = Column(String, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "timestamp": format_utc_iso(self.timestamp),
+            "agent_id": self.agent_id,
+            "target_technique": self.target_technique,
+            "evasion_strategy": self.evasion_strategy,
+            "mandate_purpose": self.mandate_purpose,
+            "category": self.category,
+            "merchant_name": self.merchant_name,
+            "amount": self.amount,
+            "item_description": self.item_description,
+            "outcome": self.outcome,
+            "detected_by": self.detected_by,
+            "defense_response": self.defense_response,
+            "source": self.source,
+            "is_synthetic": bool(self.is_synthetic),
+            "related_transaction_id": self.related_transaction_id
+        }
+
+

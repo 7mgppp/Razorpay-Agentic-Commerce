@@ -1087,6 +1087,29 @@ body {
     border-left: 4px solid #00e5ff;
 }
 
+.threat-alert-card.threat-card-cumulative {
+    border-left: 4px solid #f59e0b;
+}
+
+.overview-threat-card.threat-card-cumulative {
+    border-left: 3px solid #f59e0b;
+}
+
+.badge-amber {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.amber-text {
+    color: #fbbf24 !important;
+}
+
+.amber-glow {
+    background: rgba(245, 158, 11, 0.15) !important;
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.35);
+}
+
 .threat-card-main {
     display: flex;
     flex-direction: column;
@@ -1803,3 +1826,291 @@ body {
 .timeline-item.new .timeline-reason {
     border-left-color: var(--color-blue);
 }
+
+/* ==========================================
+   13. RED TEAM ADVERSARIAL STYLES
+   ========================================== */
+
+:root {
+    --color-purple: #a855f7;
+    --color-purple-light: #c084fc;
+    --color-purple-glow: rgba(168, 85, 247, 0.35);
+    --border-purple: rgba(168, 85, 247, 0.3);
+}
+
+.purple-text {
+    color: var(--color-purple-light) !important;
+}
+
+.purple-glow {
+    background: rgba(168, 85, 247, 0.15) !important;
+    box-shadow: 0 0 15px var(--color-purple-glow);
+}
+
+.badge-purple {
+    background: rgba(168, 85, 247, 0.18);
+    color: #e9d5ff;
+    border: 1px solid rgba(168, 85, 247, 0.4);
+}
+
+.neon-border-purple {
+    border-color: rgba(168, 85, 247, 0.3) !important;
+    box-shadow: 0 0 25px rgba(168, 85, 247, 0.08);
+}
+
+.shadow-neon-purple {
+    box-shadow: 0 0 18px rgba(168, 85, 247, 0.4);
+}
+
+.redteam-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.redteam-header-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.technique-select-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.redteam-select {
+    background: transparent;
+    border: none;
+    color: #f3e8ff;
+    font-size: 0.85rem;
+    font-weight: 500;
+    outline: none;
+    cursor: pointer;
+}
+
+.redteam-select option {
+    background: #181124;
+    color: #f3e8ff;
+}
+
+.btn-redteam-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #9333ea, #7e22ce);
+    color: #ffffff;
+    border: 1px solid #c084fc;
+    padding: 9px 18px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.btn-redteam-trigger:hover:not(:disabled) {
+    background: linear-gradient(135deg, #a855f7, #9333ea);
+    transform: translateY(-1px);
+    box-shadow: 0 0 22px rgba(168, 85, 247, 0.6);
+}
+
+.btn-redteam-trigger:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+/* Red Team KPI Grid */
+.redteam-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+}
+
+.card-rt-total {
+    border-color: rgba(168, 85, 247, 0.25);
+}
+
+.card-rt-caught {
+    border-color: rgba(16, 185, 129, 0.25);
+}
+
+.card-rt-evaded {
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.redteam-body {
+    padding-top: 10px;
+}
+
+.redteam-feed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 14px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.feed-sub-note {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.redteam-probes-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Red Team Probe Card */
+.redteam-probe-card {
+    background: rgba(24, 16, 38, 0.55);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: all 0.25s ease;
+    animation: slideIn 0.3s ease;
+    position: relative;
+}
+
+.redteam-probe-card.rt-card-caught {
+    border-left: 4px solid #10b981;
+}
+
+.redteam-probe-card.rt-card-evaded {
+    border-left: 4px solid #ef4444;
+    background: rgba(45, 12, 20, 0.6);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+}
+
+.redteam-probe-card:hover {
+    border-color: rgba(168, 85, 247, 0.45);
+    background: rgba(30, 20, 48, 0.7);
+    transform: translateY(-2px);
+}
+
+.rt-card-top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.rt-top-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.rt-top-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.rt-time {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.rt-technique-pill {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: #e9d5ff;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* Attacker Strategy Callout */
+.rt-strategy-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: rgba(168, 85, 247, 0.08);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    padding: 10px 14px;
+    border-radius: 8px;
+}
+
+.rt-strategy-icon {
+    font-size: 1.1rem;
+    margin-top: 2px;
+}
+
+.rt-strategy-text {
+    font-size: 0.88rem;
+    color: #f3e8ff;
+    line-height: 1.45;
+}
+
+.rt-strategy-text strong {
+    color: #c084fc;
+}
+
+/* Target Facts Row */
+.rt-facts-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px 18px;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.rt-fact-item {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.rt-fact-label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #94a3b8;
+    margin-bottom: 2px;
+}
+
+.rt-fact-item strong {
+    color: var(--text-primary);
+}
+
+.rt-fact-item em {
+    color: #e2e8f0;
+    font-style: normal;
+}
+
+.price-highlight {
+    font-weight: 700;
+    color: #38bdf8;
+    font-size: 0.95rem;
+}
+
+.rt-actions-row {
+    display: flex;
+    justify-content: flex-end;
+}
+

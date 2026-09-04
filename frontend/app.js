@@ -8,6 +8,7 @@ let state = {
     mandates: [],
     flags: [],
     agents: [],
+    redTeamAttempts: [],
     simulatorRunning: true,
     simulatorSpeed: 1.0,
     activeView: "view-overview",
@@ -15,7 +16,8 @@ let state = {
     threatFilter: "all",
     expandedTxIds: new Set(),
     expandedLedgerRows: new Set(),
-    expandedThreatIds: new Set()
+    expandedThreatIds: new Set(),
+    expandedRedTeamIds: new Set()
 };
 
 // WebSocket variable
@@ -64,7 +66,8 @@ function switchView(viewId) {
         "view-threats": "#security-threats",
         "view-negotiations": "#negotiations",
         "view-agents": "#agents",
-        "view-reviews": "#reviews"
+        "view-reviews": "#reviews",
+        "view-redteam": "#redteam"
     };
     if (hashMapping[viewId] && window.location.hash !== hashMapping[viewId]) {
         history.replaceState(null, null, hashMapping[viewId]);
@@ -79,7 +82,8 @@ function handleHashNavigation() {
         "#security-threats": "view-threats",
         "#negotiations": "view-negotiations",
         "#agents": "view-agents",
-        "#reviews": "view-reviews"
+        "#reviews": "view-reviews",
+        "#redteam": "view-redteam"
     };
     if (viewMapping[hash]) {
         switchView(viewMapping[hash]);
@@ -124,6 +128,12 @@ async function fetchInitialData() {
             state.agents = await agentRes.json();
         }
 
+        // Fetch Red Team Attempts
+        const rtRes = await fetch(`${API_BASE}/api/redteam`);
+        if (rtRes.ok) {
+            state.redTeamAttempts = await rtRes.json();
+        }
+
         renderAll();
 
     } catch (err) {
@@ -149,7 +159,27 @@ function connectWebSocket() {
         try {
             const payload = JSON.parse(event.data);
 
-            if (payload.type === "negotiation") {
+            if (payload.type === "redteam_attempt") {
+                state.redTeamAttempts.unshift(payload.attempt);
+                if (state.redTeamAttempts.length > 50) state.redTeamAttempts.pop();
+
+                if (payload.transaction) {
+                    state.transactions.unshift(payload.transaction);
+                    if (state.transactions.length > 100) state.transactions.pop();
+                    renderTransactions();
+                    renderOverview();
+                }
+
+                if (payload.flag) {
+                    state.flags.unshift(payload.flag);
+                    if (state.flags.length > 50) state.flags.pop();
+                    renderFlags();
+                }
+
+                renderRedTeam();
+                updateNavBadges();
+
+            } else if (payload.type === "negotiation") {
                 state.mandates.unshift(payload.data);
                 if (state.mandates.length > 50) state.mandates.pop();
                 
@@ -238,6 +268,7 @@ function renderAll() {
     renderMandates();
     renderAgents();
     renderEscalations();
+    renderRedTeam();
     updateNavBadges();
 }
 
@@ -247,11 +278,13 @@ function updateNavBadges() {
     const negBadge = document.getElementById("negotiation-nav-badge");
     const agentBadge = document.getElementById("agent-nav-badge");
     const escBadge = document.getElementById("escalation-nav-count");
+    const rtBadge = document.getElementById("redteam-nav-badge");
 
     if (ledgerBadge) ledgerBadge.textContent = state.transactions.length;
     if (threatBadge) threatBadge.textContent = state.flags.length;
     if (negBadge) negBadge.textContent = state.mandates.length;
     if (agentBadge) agentBadge.textContent = state.agents.length;
+    if (rtBadge) rtBadge.textContent = state.redTeamAttempts.length;
 
     const pendingEscalations = state.transactions.filter(t => t.decision === "escalated");
     if (escBadge) escBadge.textContent = pendingEscalations.length;
@@ -260,10 +293,12 @@ function updateNavBadges() {
     const velCountBadge = document.getElementById("threat-count-velocity");
     const colCountBadge = document.getElementById("threat-count-collusion");
     const intCountBadge = document.getElementById("threat-count-intent");
+    const cumCountBadge = document.getElementById("threat-count-cumulative");
 
     if (velCountBadge) velCountBadge.textContent = `${state.flags.filter(f => f.type === "velocity").length} Alerts`;
     if (colCountBadge) colCountBadge.textContent = `${state.flags.filter(f => f.type === "collusion").length} Alerts`;
     if (intCountBadge) intCountBadge.textContent = `${state.flags.filter(f => f.type === "intent_mismatch").length} Alerts`;
+    if (cumCountBadge) cumCountBadge.textContent = `${state.flags.filter(f => f.type === "cumulative_evasion").length} Alerts`;
 }
 
 // 5. Setup Event Listeners
@@ -379,6 +414,22 @@ function formatAlertSummary(flag) {
             amt = itemMatch[2].trim();
         }
         return `${agentId}: expected ${purp}, got ${item} (${amt})`;
+    } else if (ftype === "cumulative_evasion") {
+        if (detail.includes("2-Agent Syndicate") || detail.includes("distinct agents")) {
+            const countMatch = detail.match(/(\d+)\s+distinct agents/);
+            const n = countMatch ? countMatch[1] : "2";
+            const amtMatch = detail.match(/totaling\s+₹([\d,\.]+)/) || detail.match(/₹([\d,\.]+)/);
+            const amt = amtMatch ? amtMatch[1] : "20,000.00";
+            return `${n} agents coordinated over 1h to bypass velocity/collusion — ₹${amt} total`;
+        } else {
+            const countMatch = detail.match(/(\d+)\s+spaced-out transactions/) || detail.match(/(\d+)\s+transactions/);
+            const n = countMatch ? countMatch[1] : "3";
+            const amtMatch = detail.match(/totaling\s+₹([\d,\.]+)/) || detail.match(/₹([\d,\.]+)/);
+            const amt = amtMatch ? amtMatch[1] : "12,000.00";
+            const capMatch = detail.match(/exceeding the ₹([\d,\.]+)/);
+            const cap = capMatch ? capMatch[1] : "12,000.00";
+            return `${agentId} made ${n} spaced-out purchases in 1h — ₹${amt} (exceeds ₹${cap} policy cap)`;
+        }
     }
 
     return detail;
@@ -438,14 +489,15 @@ function renderOverview() {
     if (kpiFlaggedAgents) kpiFlaggedAgents.textContent = flaggedAgents.length;
     if (kpiTotalAgents) kpiTotalAgents.textContent = `of ${state.agents.length} Identified`;
 
-    // Render Recent Threats Preview (Single most recent alert from each of the 3 categories)
+    // Render Recent Threats Preview (Single most recent alert from each of the 4 categories)
     const threatsList = document.getElementById("overview-threats-list");
     if (threatsList) {
         const latestVelocity = state.flags.find(f => f.type === "velocity");
         const latestCollusion = state.flags.find(f => f.type === "collusion");
         const latestIntent = state.flags.find(f => f.type === "intent_mismatch");
+        const latestCumulative = state.flags.find(f => f.type === "cumulative_evasion");
 
-        const sampleFlags = [latestVelocity, latestCollusion, latestIntent].filter(Boolean);
+        const sampleFlags = [latestVelocity, latestCollusion, latestIntent, latestCumulative].filter(Boolean);
 
         if (sampleFlags.length === 0) {
             threatsList.innerHTML = `
@@ -459,6 +511,7 @@ function renderOverview() {
                 const summary = formatAlertSummary(flag);
                 const isIntent = flag.type === "intent_mismatch";
                 const isVelocity = flag.type === "velocity";
+                const isCumulative = flag.type === "cumulative_evasion";
 
                 let cardTypeClass = "threat-card-collusion";
                 let badgeClass = "badge-red";
@@ -475,6 +528,11 @@ function renderOverview() {
                     badgeClass = "badge-cyan";
                     badgeText = "INTENT MISMATCH — Bought the wrong thing?";
                     icon = "fa-bullseye";
+                } else if (isCumulative) {
+                    cardTypeClass = "threat-card-cumulative";
+                    badgeClass = "badge-amber";
+                    badgeText = "CUMULATIVE EVASION — Slow-drip limit evasion?";
+                    icon = "fa-hourglass-half";
                 }
 
                 return `
@@ -605,6 +663,7 @@ function renderThreatCardHtml(flag) {
     const summary = formatAlertSummary(flag);
     const isIntent = flag.type === "intent_mismatch";
     const isVelocity = flag.type === "velocity";
+    const isCumulative = flag.type === "cumulative_evasion";
 
     let cardTypeClass = "threat-card-collusion";
     let badgeClass = "badge-red";
@@ -621,6 +680,11 @@ function renderThreatCardHtml(flag) {
         badgeClass = "badge-cyan";
         badgeText = "INTENT MISMATCH — Bought the wrong thing?";
         icon = "fa-bullseye";
+    } else if (isCumulative) {
+        cardTypeClass = "threat-card-cumulative";
+        badgeClass = "badge-amber";
+        badgeText = "CUMULATIVE EVASION — Slow-drip limit evasion?";
+        icon = "fa-hourglass-half";
     }
 
     const txLinks = (flag.related_transaction_ids || []).map(txid => `<span class="tx-chip">${txid}</span>`).join(" ");
@@ -667,23 +731,27 @@ function renderThreatCardHtml(flag) {
     `;
 }
 
-// 8. Render Security Flags View (3 Stacked Vertical Sections)
+// 8. Render Security Flags View (4 Stacked Vertical Sections)
 function renderFlags() {
     const velContainer = document.getElementById("threats-velocity-list");
     const colContainer = document.getElementById("threats-collusion-list");
     const intContainer = document.getElementById("threats-intent-list");
+    const cumContainer = document.getElementById("threats-cumulative-list");
 
     const velCountBadge = document.getElementById("threat-count-velocity");
     const colCountBadge = document.getElementById("threat-count-collusion");
     const intCountBadge = document.getElementById("threat-count-intent");
+    const cumCountBadge = document.getElementById("threat-count-cumulative");
 
     const velFlags = state.flags.filter(f => f.type === "velocity");
     const colFlags = state.flags.filter(f => f.type === "collusion");
     const intFlags = state.flags.filter(f => f.type === "intent_mismatch");
+    const cumFlags = state.flags.filter(f => f.type === "cumulative_evasion");
 
     if (velCountBadge) velCountBadge.textContent = `${velFlags.length} Alerts`;
     if (colCountBadge) colCountBadge.textContent = `${colFlags.length} Alerts`;
     if (intCountBadge) intCountBadge.textContent = `${intFlags.length} Alerts`;
+    if (cumCountBadge) cumCountBadge.textContent = `${cumFlags.length} Alerts`;
 
     if (velContainer) {
         if (velFlags.length === 0) {
@@ -718,6 +786,18 @@ function renderFlags() {
                 </div>`;
         } else {
             intContainer.innerHTML = intFlags.map(renderThreatCardHtml).join("");
+        }
+    }
+
+    if (cumContainer) {
+        if (cumFlags.length === 0) {
+            cumContainer.innerHTML = `
+                <div class="empty-state">
+                    <i class="fa-solid fa-shield-virus green-text empty-icon"></i>
+                    <p>No cumulative volume (slow-drip evasion) alerts detected.</p>
+                </div>`;
+        } else {
+            cumContainer.innerHTML = cumFlags.map(renderThreatCardHtml).join("");
         }
     }
 }
@@ -1028,3 +1108,212 @@ window.onclick = function(event) {
         modal.classList.remove("show");
     }
 };
+
+// ==========================================
+// 12. RED TEAM ADVERSARIAL MONITOR
+// ==========================================
+
+function formatTechniqueLabel(tech) {
+    if (!tech) return "ADVERSARIAL PROBE";
+    const mapping = {
+        "semantic_boundary_probe": "SEMANTIC INTENT BOUNDARY PROBE",
+        "velocity_threshold_skimming": "VELOCITY THRESHOLD SKIMMING",
+        "split_collusion_sub_syndicate": "2-AGENT COLLUSION SUB-SYNDICATE",
+        "category_cap_evasion": "CATEGORY CAP EVASION"
+    };
+    return mapping[tech] || tech.replace(/_/g, " ").toUpperCase();
+}
+
+function formatDetectorName(detector) {
+    if (!detector) return "Undetected / Evaded";
+    const mapping = {
+        "intent_mismatch": "Semantic Intent Engine (LLM / Fallback)",
+        "velocity": "Velocity Defense (Frequency / Sum)",
+        "collusion": "Collusion Defense (Syndicate Monitor)",
+        "policy_cap": "Merchant Policy Cap Engine",
+        "escalation": "Human-in-the-Loop Escalation",
+        "enforcement_rule": "Deterministic Enforcement Rule",
+        "none_evaded": "None (Evaded Defense)"
+    };
+    return mapping[detector] || detector;
+}
+
+function renderRedTeam() {
+    const list = document.getElementById("redteam-probes-list");
+    const countBadge = document.getElementById("redteam-count-badge");
+    const kpiTotal = document.getElementById("kpi-rt-total");
+    const kpiCaught = document.getElementById("kpi-rt-caught");
+    const kpiRate = document.getElementById("kpi-rt-rate");
+    const kpiEvaded = document.getElementById("kpi-rt-evaded");
+    const kpiGapSub = document.getElementById("kpi-rt-gap-sub");
+
+    const attempts = state.redTeamAttempts || [];
+    const total = attempts.length;
+    const caught = attempts.filter(a => a.outcome === "caught").length;
+    const evaded = attempts.filter(a => a.outcome === "evaded").length;
+    const rate = total > 0 ? ((caught / total) * 100).toFixed(1) + "%" : "100%";
+
+    if (countBadge) countBadge.textContent = `${total} Probes`;
+    if (kpiTotal) kpiTotal.textContent = total;
+    if (kpiCaught) kpiCaught.textContent = caught;
+    if (kpiRate) kpiRate.textContent = `${rate} Interception`;
+    if (kpiEvaded) kpiEvaded.textContent = evaded;
+    if (kpiGapSub) kpiGapSub.textContent = evaded === 1 ? "1 Gap Detected" : `${evaded} Gaps Detected`;
+
+    if (!list) return;
+
+    if (attempts.length === 0) {
+        list.innerHTML = `
+            <div class="empty-state">
+                <i class="fa-solid fa-user-secret empty-icon purple-text"></i>
+                <p>No adversarial probes executed yet.</p>
+                <span class="empty-subtext">Click <strong>"Run Red Team Test"</strong> above to launch an autonomous attack probe against the safety defenses.</span>
+            </div>
+        `;
+        return;
+    }
+
+    list.innerHTML = attempts.map(attempt => {
+        const isCaught = attempt.outcome === "caught";
+        const isExpanded = state.expandedRedTeamIds.has(attempt.id);
+        const timeStr = formatDateTime(attempt.timestamp);
+        const isAi = attempt.source === "ai_llm";
+
+        const cardBorderClass = isCaught ? "rt-card-caught" : "rt-card-evaded";
+        const outcomeBadge = isCaught
+            ? `<span class="badge badge-green"><i class="fa-solid fa-shield-check"></i> INTERCEPTED (CAUGHT)</span>`
+            : `<span class="badge badge-red neon-pulse"><i class="fa-solid fa-triangle-exclamation"></i> DETECTION GAP (EVADED)</span>`;
+
+        const sourceBadge = isAi
+            ? `<span class="badge badge-cyan"><i class="fa-solid fa-brain"></i> AI Generated (Gemini)</span>`
+            : `<span class="badge badge-gray">Static Test Pattern</span>`;
+
+        return `
+            <div class="redteam-probe-card ${cardBorderClass}" id="rt-card-${attempt.id}">
+                <!-- Synthetic Red-Team Banner -->
+                <div class="rt-card-top-bar">
+                    <div class="rt-top-left">
+                        <span class="badge badge-purple"><i class="fa-solid fa-user-secret"></i> ADVERSARIAL PROBE</span>
+                        <span class="rt-technique-pill">${formatTechniqueLabel(attempt.target_technique)}</span>
+                        ${sourceBadge}
+                    </div>
+                    <div class="rt-top-right">
+                        <span class="rt-time"><i class="fa-regular fa-clock"></i> ${timeStr}</span>
+                        ${outcomeBadge}
+                    </div>
+                </div>
+
+                <!-- Attacker Stated Strategy Callout -->
+                <div class="rt-strategy-callout">
+                    <div class="rt-strategy-icon"><i class="fa-solid fa-crosshairs purple-text"></i></div>
+                    <div class="rt-strategy-text">
+                        <strong>Attacker Strategy:</strong> ${escapeHtml(attempt.evasion_strategy || "Synthetic test probe")}
+                    </div>
+                </div>
+
+                <!-- Transaction Target Facts -->
+                <div class="rt-facts-row">
+                    <div class="rt-fact-item">
+                        <span class="rt-fact-label">ATTACK AGENT:</span>
+                        <span class="code-pill">${escapeHtml(attempt.agent_id)}</span>
+                    </div>
+                    <div class="rt-fact-item">
+                        <span class="rt-fact-label">TARGET MERCHANT:</span>
+                        <strong>${escapeHtml(attempt.merchant_name)}</strong> (${escapeHtml(attempt.category)})
+                    </div>
+                    <div class="rt-fact-item">
+                        <span class="rt-fact-label">AMOUNT:</span>
+                        <span class="price-highlight">₹${formatINR(attempt.amount)}</span>
+                    </div>
+                    <div class="rt-fact-item">
+                        <span class="rt-fact-label">ITEM ATTEMPTED:</span>
+                        <em>${escapeHtml(attempt.item_description)}</em>
+                    </div>
+                </div>
+
+                <!-- Expand/Collapse Button -->
+                <div class="rt-actions-row">
+                    <button class="threat-toggle-btn" onclick="toggleRedTeamDetails('${attempt.id}')">
+                        <i class="fa-solid ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
+                        <span>${isExpanded ? 'Hide Test Telemetry' : 'Show Test Telemetry & Defense Response'}</span>
+                    </button>
+                </div>
+
+                <!-- Expandable Drawer -->
+                <div class="threat-details-drawer ${isExpanded ? 'open' : ''}">
+                    <div class="threat-details-grid">
+                        <div class="detail-row">
+                            <span class="detail-label">Mandate Stated Scope:</span>
+                            <span class="detail-value font-mono">"${escapeHtml(attempt.mandate_purpose)}"</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Intercepted By:</span>
+                            <span class="detail-value">
+                                <span class="badge ${isCaught ? 'badge-blue' : 'badge-red'}">${formatDetectorName(attempt.detected_by)}</span>
+                            </span>
+                        </div>
+                        <div class="detail-row threat-ai-reasoning-row">
+                            <span class="detail-label">Safety Response / Finding:</span>
+                            <span class="detail-value threat-ai-reasoning-text ${isCaught ? 'green-text' : 'red-text'}">
+                                ${escapeHtml(attempt.defense_response || "N/A")}
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Recorded Tx ID:</span>
+                            <span class="detail-value code-pill">${escapeHtml(attempt.related_transaction_id || attempt.id)}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
+function toggleRedTeamDetails(attemptId) {
+    if (state.expandedRedTeamIds.has(attemptId)) {
+        state.expandedRedTeamIds.delete(attemptId);
+    } else {
+        state.expandedRedTeamIds.add(attemptId);
+    }
+    renderRedTeam();
+}
+
+async function triggerManualRedTeamTest() {
+    const btn = document.getElementById("btn-trigger-redteam");
+    const select = document.getElementById("redteam-technique-select");
+    const selectedTech = select ? select.value : "";
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Running Probe...</span>`;
+    }
+
+    try {
+        const payload = selectedTech ? { technique: selectedTech } : {};
+        const res = await fetch(`${API_BASE}/api/redteam/trigger`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            const newAttempt = await res.json();
+            // Add to state if not yet delivered by websocket
+            if (!state.redTeamAttempts.some(a => a.id === newAttempt.id)) {
+                state.redTeamAttempts.unshift(newAttempt);
+                renderRedTeam();
+                updateNavBadges();
+            }
+        } else {
+            console.error("Red-team trigger API failed:", await res.text());
+        }
+    } catch (err) {
+        console.error("Error triggering Red-Team test:", err);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-play"></i> <span>Run Red Team Test</span>`;
+        }
+    }
+}
+

@@ -36,7 +36,7 @@ def evaluate_semantic_intent(
     # 1. Live LLM Semantic Intent Evaluation (Gemini)
     gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if gemini_key:
-        candidate_models = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.7-flash", "gemini-3.1-flash-lite"]
+        candidate_models = ["gemini-3.1-flash-lite", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.7-flash"]
         prompt = (
             f"You are a semantic intent verification engine for an autonomous agent commerce safety layer.\n"
             f"Evaluate whether the attempted transaction is an INTENT MISMATCH against the mandate's stated purpose.\n\n"

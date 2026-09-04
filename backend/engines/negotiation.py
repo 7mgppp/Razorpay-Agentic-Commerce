@@ -56,7 +56,7 @@ def call_llm_counter_offer(
     openai_key = os.getenv("OPENAI_API_KEY")
 
     if gemini_key:
-        candidate_models = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.7-flash", "gemini-3.1-flash-lite"]
+        candidate_models = ["gemini-3.1-flash-lite", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.7-flash"]
         prompt = (
             f"You are the autonomous Merchant Risk & Policy Negotiator for Razorpay Mandate Layer.\n"
             f"An AI buyer agent requested a mandate exceeding standard policy limits.\n"
@@ -80,7 +80,7 @@ def call_llm_counter_offer(
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
                 req = urllib.request.Request(url, data=req_data, headers={"Content-Type": "application/json"})
-                with urllib.request.urlopen(req, timeout=4) as response:
+                with urllib.request.urlopen(req, timeout=8) as response:
                     res_body = json.loads(response.read().decode("utf-8"))
                     text_content = res_body["candidates"][0]["content"]["parts"][0]["text"]
                     parsed = json.loads(text_content)
@@ -91,18 +91,19 @@ def call_llm_counter_offer(
                         "validity_minutes": int(parsed.get("validity_minutes", 15)),
                         "condition": str(parsed.get("condition", "Provisional clearance subject to compliant usage.")),
                         "llm_reasoning": str(parsed.get("llm_reasoning", f"Over-limit request by {gap_percent:.1f}%; bounded to policy limit under condensed window.")),
+                        "source": "ai_llm",
                         "reason": f"Requested ₹{requested_cap:,.2f} exceeded '{risk_tier}' policy limit (₹{policy_limit:,.2f}). Counter-offer: ₹{parsed.get('countered_cap', policy_limit):,.2f} cap for {parsed.get('validity_minutes', 15)} mins."
                     }
             except Exception:
                 continue
 
-    # 2. High-Fidelity Generative LLM Counter-Offer Synthesis Engine
+    # 2. Deterministic Rule-Based Synthesis Fallback (when LLM is unavailable)
     if risk_tier == "new":
         countered_cap = policy_limit  # Bound strictly to standard ceiling
         countered_window = 15  # Condensed 15-minute window
         condition = "Provisional baseline approval. Eligible for full cap review after 3 consecutive clean transactions."
         llm_reasoning = (
-            f"Over-ask by {gap_percent:.1f}% for unverified 'new' tier agent; "
+            f"Rule-based (AI unavailable): Over-ask by {gap_percent:.1f}% for unverified 'new' tier agent; "
             f"issued provisional ₹{countered_cap:,.0f} cap with a condensed {countered_window}-min window "
             f"rather than outright denial to enable initial procurement safely."
         )
@@ -112,7 +113,7 @@ def call_llm_counter_offer(
         countered_window = 10  # Enforced 10-minute validity window
         condition = "High-risk containment: Bounded to constrained tier ceiling under a condensed 10-minute validity window."
         llm_reasoning = (
-            f"Agent '{agent_id}' has {violation_count} active security violations; "
+            f"Rule-based (AI unavailable): Agent '{agent_id}' has {violation_count} active security violations; "
             f"countered with constrained ₹{countered_cap:,.0f} cap and 10-min window to prevent liquidity drainage "
             f"while preserving essential operations."
         )
@@ -123,7 +124,7 @@ def call_llm_counter_offer(
             countered_window = 30
             condition = "Established partner elasticity buffer (+10%). Requires invoice reconciliation within 24 hours."
             llm_reasoning = (
-                f"Established partner requested {gap_percent:.1f}% above standard policy; "
+                f"Rule-based (AI unavailable): Established partner requested {gap_percent:.1f}% above standard policy; "
                 f"granted provisional 10% elasticity buffer (₹{countered_cap:,.0f}) under a 30-min window."
             )
         else:
@@ -131,7 +132,7 @@ def call_llm_counter_offer(
             countered_window = 30
             condition = "Tier ceiling cap granted. Bulk volume overages require prior administrative approval."
             llm_reasoning = (
-                f"Request exceeded maximum established limit by {gap_percent:.1f}%; "
+                f"Rule-based (AI unavailable): Request exceeded maximum established limit by {gap_percent:.1f}%; "
                 f"capped at ceiling ₹{countered_cap:,.0f} under a 30-minute allocation to minimize merchant exposure."
             )
 
@@ -141,6 +142,7 @@ def call_llm_counter_offer(
         "validity_minutes": countered_window,
         "condition": condition,
         "llm_reasoning": llm_reasoning,
+        "source": "rule_based_fallback",
         "reason": (
             f"Requested ₹{requested_cap:,.2f} exceeded '{risk_tier}' policy limit (₹{policy_limit:,.2f}). "
             f"Counter-offer: ₹{countered_cap:,.2f} cap for {countered_window} mins. {condition}"
