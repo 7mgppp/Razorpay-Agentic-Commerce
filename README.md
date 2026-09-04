@@ -70,10 +70,10 @@ Then open `http://localhost:8000`. API docs at `http://localhost:8000/docs`.
 
 ## Screenshots
 
-| Overview | Live Ledger |
+| Overview | Negotiation |
 |---|---|
-| ![Overview](overview.png) | ![Ledger](liveLedger.png) |
+| ![Overview](overview.png) | ![Negotiation](negotiation.png) |
 
-| Security Alerts | Pending Reviews |
+| Red Team | Security Threats |
 |---|---|
-| ![Alerts](secAlrert.png) | ![Reviews](pending.png) |
+| ![Red Team](redTeam.png) | ![Security Threats](secThreat.png) |
