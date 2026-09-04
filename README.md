@@ -72,7 +72,7 @@ Then open `http://localhost:8000`. API docs at `http://localhost:8000/docs`.
 
 | Overview | Negotiation |
 |---|---|
-| ![Overview](overview.png) | ![Negotiation](negotiation.png) |
+| ![Overview](overview.png) | ![Negotiation](negoniation.png) |
 
 | Red Team | Security Threats |
 |---|---|
